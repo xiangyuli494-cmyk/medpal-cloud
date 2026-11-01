@@ -1,47 +1,90 @@
 #!/usr/bin/env bash
-# 一键给 main 加保护：PR + 1 approval + CI 必绿 + 禁止直推/强推。
-# 前置：gh auth login（有 repo 权限）、仓库已在 GitHub 上、CI 至少成功跑过一次（状态检查名才对得上）。
-# 用法：bash scripts/setup-branch-protection.sh [OWNER/REPO] [--restrict]
-#   --restrict  只有队长能 push/merge。免费私仓不支持该开关；公开仓或 Team 计划可用。
-#               用不了时改走 fork 流程：队员只有读权限，从自己的 fork 提 PR，merge 只有队长能做。
+# 给 main 加保护：PR + 1 人 approve + CI 必绿 + 禁止直推/强推/删分支。
+# 用法：bash scripts/setup-branch-protection.sh [OWNER/REPO] [--restrict] [--codeowner]
+#   --restrict   只有队长能 push（公开仓 / Team 计划可用；免费私仓会返回 422）
+#   --codeowner  要求 CODEOWNERS 里的人 approve。**先把 T1_HANDLE/T2_HANDLE/T3_HANDLE 换成真账号再开**，
+#                否则 t1 自己的 PR 找不到可批准的 code owner，会永久卡在门禁上。
+# token 来源：$GITHUB_TOKEN → gh auth token → git credential（GCM 缓存），三者取到即可，无需装 gh。
 set -euo pipefail
 
-REPO="${1:-$(gh repo view --json nameWithOwner -q .nameWithOwner)}"
-FLAG="${2:-}"
+REPO=""
+FLAG_RESTRICT=0
+FLAG_CODEOWNER=0
+for a in "${@:-}"; do
+  case "$a" in
+    --restrict)  FLAG_RESTRICT=1 ;;
+    --codeowner) FLAG_CODEOWNER=1 ;;
+    "")          ;;
+    *)           REPO="$a" ;;
+  esac
+done
+REPO="${REPO:-xiangyuli494-cmyk/medpal-cloud}"
 OWNER="${REPO%%/*}"
 NAME="${REPO##*/}"
-CAPTAIN="${CAPTAIN:-$(gh api user -q .login)}"
 
-echo "仓库: $REPO    队长: $CAPTAIN    限制推送: ${FLAG:-否}"
+TOKEN="${GITHUB_TOKEN:-}"
+if [ -z "$TOKEN" ] && command -v gh >/dev/null 2>&1; then
+  TOKEN="$(gh auth token 2>/dev/null || true)"
+fi
+if [ -z "$TOKEN" ]; then
+  TOKEN="$(printf 'protocol=https\nhost=github.com\n\n' | git credential fill 2>/dev/null | sed -n 's/^password=//p')"
+fi
+[ -n "$TOKEN" ] || { echo "没有 GitHub token：export GITHUB_TOKEN=... 后重试"; exit 1; }
 
-BODY=$(cat <<JSON
-{
-  "required_status_checks": {
-    "strict": true,
-    "contexts": ["test (3.11)", "test (3.12)", "meta", "size"]
-  },
-  "enforce_admins": true,
-  "required_pull_request_reviews": {
-    "dismiss_stale_reviews": true,
-    "require_code_owner_reviews": true,
-    "required_approving_review_count": 1,
-    "require_last_push_approval": true
-  },
-  "required_conversation_resolution": true,
-  "allow_force_pushes": false,
-  "allow_deletions": false
+CAPTAIN="${CAPTAIN:-$OWNER}"
+API="https://api.github.com/repos/$OWNER/$NAME"
+
+echo "仓库 $REPO | 队长 $CAPTAIN | 限制推送 $([ $FLAG_RESTRICT = 1 ] && echo 是 || echo 否) | code owner 审批 $([ $FLAG_CODEOWNER = 1 ] && echo 是 || echo 否)"
+
+BODY="$(RESTRICT="$FLAG_RESTRICT" CODEOWNER="$FLAG_CODEOWNER" CAPTAIN="$CAPTAIN" python - <<'PY'
+import json, os
+d = {
+    "required_status_checks": {
+        "strict": True,
+        "contexts": ["test (3.11)", "test (3.12)", "meta", "size"],
+    },
+    "enforce_admins": True,
+    "required_pull_request_reviews": {
+        "dismiss_stale_reviews": True,
+        "required_approving_review_count": 1,
+        "require_last_push_approval": True,
+    },
+    "required_conversation_resolution": True,
+    "allow_force_pushes": False,
+    "allow_deletions": False,
 }
-JSON
-)
+if os.environ.get("CODEOWNER") == "1":
+    d["required_pull_request_reviews"]["require_code_owner_reviews"] = True
+if os.environ.get("RESTRICT") == "1":
+    d["restrictions"] = {"users": [os.environ["CAPTAIN"]], "teams": [], "apps": []}
+print(json.dumps(d))
+PY
+)"
 
-if [ "$FLAG" = "--restrict" ]; then
-  BODY=$(printf '%s' "$BODY" | python -c "import json,sys; d=json.load(sys.stdin); d['restrictions']={'users':['$CAPTAIN'],'teams':[],'apps':[]}; print(json.dumps(d))")
+OUT="$PWD/.protect.out"
+CODE="$(printf '%s' "$BODY" | curl -sS -o "$OUT" -w '%{http_code}' -X PUT "$API/branches/main/protection" \
+  -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" -H "Content-Type: application/json" --data-binary @-)"
+if [ "$CODE" != "204" ] && [ "$CODE" != "200" ]; then
+  echo "PUT 失败 HTTP $CODE"
+  python -c "import json;d=json.load(open('$OUT'));print(d.get('message'));print((d.get('errors') or [''])[0])" 2>/dev/null || cat "$OUT"
+  exit 1
 fi
 
-printf '%s' "$BODY" | gh api -X PUT "repos/$OWNER/$NAME/branches/main/protection" \
-  -H "Accept: application/vnd.github+json" --input - > /dev/null
+curl -sS -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" "$API/branches/main/protection" | python -c "
+import sys, json
+d = json.load(sys.stdin)
+pr = d.get('required_pull_request_reviews') or {}
+checks = [c['context'] for c in d.get('required_status_checks', {}).get('contexts', [])]
+print('approve 数     :', pr.get('required_approving_review_count'))
+print('撤销旧 approve :', pr.get('dismiss_stale_reviews'))
+print('code owner 审  :', pr.get('require_code_owner_reviews', False))
+print('必绿检查       :', ', '.join(checks))
+print('严格模式       :', d.get('required_status_checks', {}).get('strict'))
+print('管理员同样受限 :', d.get('enforce_admins', {}).get('enabled'))
+print('禁止强推       :', not d.get('allow_force_pushes', {}).get('enabled'))
+print('禁止删分支     :', not d.get('allow_deletions', {}).get('enabled'))
+r = d.get('restrictions')
+print('推送白名单     :', [u['login'] for u in (r or {}).get('users', [])] or '未开启')
+"
 
-gh api "repos/$OWNER/$NAME/branches/main/protection" -q \
-  '"PR 必须 " + (.required_pull_request_reviews.required_approving_review_count|tostring) + " 个 approve; 强推 " + (.allow_force_pushes.enabled|tostring) + "; 管理员受限 " + (.enforce_admins.enabled|tostring)'
-
-echo "完成。直推 main 现在应当被拒：git push origin HEAD:main  ->  protected branch hook declined"
+echo "完成。验证保护是否生效：git push origin HEAD:main  ->  protected branch hook declined"
