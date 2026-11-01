@@ -1,0 +1,29 @@
+# 谁必须 review 哪些路径（t1 = 队长）
+# 把 T2_HANDLE / T3_HANDLE 换成实际 GitHub 用户名后再提交；不换的话保护规则会一直等人。
+
+# 默认：队长兜底
+*                       @T1_HANDLE
+
+# lane C —— 底座与收口（t1）
+/packages/core/         @T1_HANDLE
+/contracts/             @T1_HANDLE
+/docs/solution/         @T1_HANDLE
+/README.md              @T1_HANDLE
+/docs/04-*              @T1_HANDLE
+/docs/05-*              @T1_HANDLE
+/docs/06-*              @T1_HANDLE
+
+# lane A —— 应用与评测（t2）
+/apps/                  @T2_HANDLE
+/eval/                  @T2_HANDLE
+/data/                  @T2_HANDLE
+
+# lane B —— 云与交付（t3）
+/providers/             @T3_HANDLE
+/deploy/                @T3_HANDLE
+/scripts/               @T3_HANDLE
+/Dockerfile             @T3_HANDLE
+/tools/                 @T3_HANDLE
+
+# 仓库级配置：改动需要队长 + 云交付一起看
+/.github/               @T1_HANDLE @T3_HANDLE

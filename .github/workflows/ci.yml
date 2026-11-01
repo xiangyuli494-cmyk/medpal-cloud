@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: lint
+        run: python -m ruff check .
+
+      - name: boundary check (B1/B2/B3)
+        run: python tools/check_boundaries.py
+
+      - name: guard words
+        run: python tools/check_guard_words.py
+
+      - name: tests
+        run: python -m pytest -q
+
+      - name: seed + smoke
+        run: |
+          python -m app.seed
+          python -c "from app.main import app; from fastapi.testclient import TestClient; c=TestClient(app); r=c.get('/health'); assert r.status_code==200, r.text; print(r.json())"
+
+      - name: eval
+        run: python eval/run_eval.py

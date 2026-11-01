@@ -1,0 +1,33 @@
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# runtime data (生成的库、报告、快照不进仓)
+data/medpal.db
+data/*.db
+data/reports/
+data/ontology_v*.jsonl
+eval/report.json
+
+# editor / os
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# tooling scratch
+.dsh-ops-update-*.lock
+*.lock
+
+# local env
+.env
+.env.local

@@ -1,0 +1,15 @@
+.git
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+build
+dist
+*.egg-info
+data/medpal.db
+data/reports
+data/ontology_v*.jsonl
+eval/report.json
+_build

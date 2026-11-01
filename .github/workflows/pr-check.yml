@@ -1,0 +1,56 @@
+name: pr-check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 标题必须带任务编号
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo "PR 标题: $TITLE"
+          if ! printf '%s' "$TITLE" | grep -Eq '^\[[ABCD][0-9]{1,2}\] .+'; then
+            echo "::error::标题要以 [C2] / [A5] / [B10] / [D3] 这样的任务编号开头，见 docs/06-协作与分支规范.md"
+            exit 1
+          fi
+      - name: 分支命名
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          echo "分支: $HEAD_REF"
+          if ! printf '%s' "$HEAD_REF" | grep -Eq '^(feat|fix|docs|chore)/[a-z0-9][a-z0-9._-]*$'; then
+            echo "::error::分支名要是 feat/<编号>-<slug>、fix/、docs/、chore/ 四种前缀，当前 $HEAD_REF"
+            exit 1
+          fi
+
+  size:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 规模与改动面
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags origin "$BASE_REF"
+          RANGE="origin/$BASE_REF...HEAD"
+          LINES=$(git diff --numstat "$RANGE" | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          echo "diff 行数: $LINES"
+          git diff --name-only "$RANGE" | sed 's/^/  /'
+          if [ "$LINES" -gt 400 ]; then
+            echo "::warning::$LINES 行 > 400，按 docs/06 §4 拆成两个 PR"
+          fi
+          LANES=$(git diff --name-only "$RANGE" | awk 'BEGIN{c=0;a=0;b=0}
+            /^packages\/core|^contracts|^docs\/solution/ {c=1}
+            /^apps\/|^eval\/|^data\// {a=1}
+            /^providers\/|^deploy\/|^\.github\/|^Dockerfile|^scripts\/|^tools\// {b=1}
+            END {print c+a+b}')
+          echo "涉及 lane 数: $LANES"
+          if [ "$LANES" -gt 1 ]; then
+            echo "::warning::跨了 $LANES 条 lane，需要每条 lane 各一个 approve（docs/06 §1）"
+          fi

@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "medpal-cloud"
+version = "0.1.0"
+description = "赛题1：基于华为云产品打造的 AI 创新应用 —— 可复用智能底座 + 可追溯决策链"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+  "fastapi>=0.110",
+  "uvicorn>=0.27",
+  "httpx>=0.27",
+  "jsonschema>=4.20",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.5"]
+huawei = ["esdk-obs-python>=3.22", "psycopg[binary]>=3.1"]
+
+[tool.setuptools]
+package-dir = { "" = "packages/core" }
+
+[tool.setuptools.packages.find]
+where = ["packages/core"]
+
+[tool.pytest.ini_options]
+pythonpath = [".", "packages/core", "apps/api"]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["packages/core", "apps/api", "tests", "tools", "eval"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"data/**" = ["ALL"]

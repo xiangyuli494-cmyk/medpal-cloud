@@ -1,0 +1,8 @@
+{"head":{"id":"E-sym-001","type":"symptom","label":"上腹隐痛"},"rel":"提示","tail":{"id":"E-dis-001","type":"disease","label":"消化性溃疡"},"confidence":0.86,"anchor_term":"上腹隐痛是最常见","standard":{"scheme":"ICD-10","code":"K27"}}
+{"head":{"id":"E-dis-001","type":"disease","label":"消化性溃疡"},"rel":"确诊检查","tail":{"id":"E-exam-001","type":"exam","label":"胃镜"},"confidence":0.95,"anchor_term":"首选胃镜","standard":{"scheme":"ICD-9-CM-3","code":"45.13"}}
+{"head":{"id":"E-dis-001","type":"disease","label":"消化性溃疡"},"rel":"常见病因","tail":{"id":"E-pat-001","type":"pathogen","label":"幽门螺杆菌"},"confidence":0.92,"anchor_term":"幽门螺杆菌检测","standard":{"scheme":"SNOMED","code":"71251005"}}
+{"head":{"id":"E-pat-001","type":"pathogen","label":"幽门螺杆菌"},"rel":"检测方法","tail":{"id":"E-exam-002","type":"exam","label":"呼气试验"},"confidence":0.9,"anchor_term":"呼气试验为首选","standard":{"scheme":"LOINC","code":"31797-3"}}
+{"head":{"id":"E-dis-001","type":"disease","label":"消化性溃疡"},"rel":"就诊科室","tail":{"id":"E-dept-001","type":"dept","label":"消化内科"},"confidence":0.98,"anchor_term":"转入消化内科","standard":{"scheme":"院内科室编码","code":"DIG-01"}}
+{"head":{"id":"E-dis-001","type":"disease","label":"消化性溃疡"},"rel":"常见诱因","tail":{"id":"E-drug-001","type":"drug","label":"布洛芬"},"confidence":0.84,"anchor_term":"止痛药","standard":{"scheme":"ATC","code":"M01AE01"}}
+{"head":{"id":"E-sym-001","type":"symptom","label":"上腹隐痛"},"rel":"伴随症状","tail":{"id":"E-sym-002","type":"symptom","label":"烧心"},"confidence":0.8,"anchor_term":"伴反酸与烧心","standard":{}}
+{"head":{"id":"E-pat-001","type":"pathogen","label":"幽门螺杆菌"},"rel":"治疗方案","tail":{"id":"E-ther-001","type":"therapy","label":"根除治疗"},"confidence":0.88,"anchor_term":"根除治疗并复查","standard":{}}
