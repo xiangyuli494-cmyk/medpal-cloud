@@ -8,6 +8,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      # apps/api/app 与 packages/core 都要在 sys.path 上，等价于 tools/dev.sh 里那次 export
+      PYTHONPATH: apps/api:packages/core
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]
