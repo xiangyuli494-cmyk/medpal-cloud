@@ -77,6 +77,7 @@ def write_trace(conn, question, steps, agent_version="v1.0", elapsed_ms=0, gaps=
     unresolved = [e for e in cited if not _evidence_exists(conn, e)]
     # 没有可引证据时（拒答题）溯源完整率记为 1.0：结论是「超出覆盖范围」，
     # 本身不依赖证据，不构成不可追溯。报告里会显式写「证据数 0」以示区分。
+    refusal = not cited
     completeness = round(1 - len(unresolved) / len(cited), 3) if cited else 1.0
 
     report_dir().mkdir(parents=True, exist_ok=True)
@@ -89,7 +90,7 @@ def write_trace(conn, question, steps, agent_version="v1.0", elapsed_ms=0, gaps=
         "- 本体版本：" + onto,
         "- 生成时间：" + now(),
         "- 证据数：" + str(len(cited)) + ("（无引用，拒答类结论）" if not cited else ""),
-        "- 溯源完整率：" + str(completeness),
+        "- 溯源完整率：" + ("—（拒答，不计分）" if refusal else str(completeness)),
         "",
         "## 决策链",
         "",
@@ -120,6 +121,7 @@ def write_trace(conn, question, steps, agent_version="v1.0", elapsed_ms=0, gaps=
         "report_path": str(report),
         "evidence_count": len(cited),
         "trace_completeness": completeness,
+        "refusal": refusal,
         "unresolved": unresolved,
     }
 

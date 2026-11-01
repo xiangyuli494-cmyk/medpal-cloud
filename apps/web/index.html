@@ -104,13 +104,15 @@ function render(data) {
                  "<span>本体 <b>" + (data.ontology_version || "—") + "</b></span>" +
                  "<span>耗时 <b>" + (data.elapsed_ms || 0) + " ms</b></span>";
   card.appendChild(kv);
+  var cited = data.evidence_count || 0;
   var pct = Math.round((data.trace_completeness || 0) * 100);
+  var shown = cited ? pct + "%" : "拒答 · 不计分";
   var label = el("div", "kv");
-  label.innerHTML = "<span>溯源完整率 <b>" + pct + "%</b>（证据 " + (data.evidence_count || 0) + " 条）</span>";
+  label.innerHTML = "<span>溯源完整率 <b>" + shown + "</b>（证据 " + cited + " 条）</span>";
   card.appendChild(label);
   var bar = el("div", "bar");
   var fill = el("i");
-  fill.style.width = pct + "%";
+  fill.style.width = (cited ? pct : 0) + "%";
   bar.appendChild(fill);
   card.appendChild(bar);
   out.appendChild(card);

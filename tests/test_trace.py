@@ -48,3 +48,4 @@ def test_no_evidence_counts_as_complete(conn):
                                        "evidence": []}])
     assert out["trace_completeness"] == 1.0
     assert out["evidence_count"] == 0
+    assert out["refusal"] is True

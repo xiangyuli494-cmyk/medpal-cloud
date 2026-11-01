@@ -43,10 +43,25 @@ def _score_completeness(out: dict) -> float:
     return float(out.get("trace_completeness") or 0.0)
 
 
-def run(db_path: str = "") -> dict:
+def dataset_path(name: str = "") -> Path:
+    """--dataset 指定 v1/v2；不指定优先 v2（扩到 30/60 条后自动切），没有再退回 v1。"""
+    folder = REPO / "eval" / "dataset"
+    if name:
+        p = folder / (name if name.endswith(".jsonl") else name + ".jsonl")
+        if not p.exists():
+            raise SystemExit(f"数据集不存在：{p}")
+        return p
+    for cand in ("v2.jsonl", "v1.jsonl"):
+        if (folder / cand).exists():
+            return folder / cand
+    raise SystemExit(f"{folder} 下没有 jsonl 数据集")
+
+
+def run(db_path: str = "", dataset: str = "") -> dict:
     conn = connect(db_path or None)
     try:
-        rows = load(REPO / "eval" / "dataset" / "v1.jsonl")
+        path = dataset_path(dataset)
+        rows = load(path)
         cases = []
         for row in rows:
             out = answer(conn, row["q"])
@@ -67,6 +82,7 @@ def run(db_path: str = "") -> dict:
         cur = onto_version.current_version(conn)
         return {
             "ontology_version": (cur or {}).get("version"),
+            "dataset": path.name,
             "n": len(cases),
             "dept_acc": round(sum(c["dept_ok"] for c in cases) / n, 3),
             "exam_recall": round(sum(c["exam_ok"] for c in cases) / n, 3),
@@ -84,8 +100,9 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default="")
     ap.add_argument("--json", default="")
+    ap.add_argument("--dataset", default="", help="v1 / v2 / 文件名，缺省自动挑最新的")
     args = ap.parse_args(argv)
-    report = run(args.db)
+    report = run(args.db, args.dataset)
     for c in report["cases"]:
         flag = "OK " if (c["dept_ok"] and c["exam_ok"]) else "MISS"
         print(f"{flag} {c['q'][:30]:<32} completeness={c['completeness']}  {c['elapsed_ms']}ms")
@@ -93,7 +110,8 @@ def main(argv=None) -> int:
     print(
         f"dept_acc={report['dept_acc']}  exam_recall={report['exam_recall']}  "
         f"completeness={report['completeness']}  avg_steps={report['avg_steps']}  "
-        f"avg_ms={report['avg_ms']}  (n={report['n']})"
+        f"avg_ms={report['avg_ms']}  (n={report['n']}, dataset={report['dataset']}, "
+        f"zero_evidence={report['zero_evidence']})"
     )
     if args.json:
         Path(args.json).write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n",
