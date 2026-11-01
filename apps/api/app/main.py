@@ -1,4 +1,4 @@
-"""HTTP 入口。六个端点覆盖「资产入库 -> 提问 -> 决策链 -> 本体版本」闭环。
+"""HTTP 入口。端点覆盖「资产入库 -> 提问 -> 决策链 -> 本体版本」闭环。
 
 启动（仓库根目录）：
     MEDPAL_DATA_DIR=./data uv run -- python -m uvicorn app.main:app --app-dir apps/api --port 8000
@@ -60,8 +60,9 @@ def root():
         "name": "medpal-trace",
         "app_version": app_version,
         "core_version": core_version,
-        "endpoints": ["/health", "/v1/cloud", "/v1/assets", "/v1/ask",
-                      "/v1/traces/{trace_id}", "/v1/ontology", "/v1/ontology/diff"],
+        "endpoints": ["/health", "/v1/cloud", "/v1/assets", "/v1/assets/{asset_id}",
+                      "/v1/ask", "/v1/traces/{trace_id}", "/v1/ontology",
+                      "/v1/ontology/versions", "/v1/ontology/diff"],
         "web": "/web/" if WEB_DIR.exists() else None,
     }
 
@@ -118,6 +119,20 @@ def assets(
 ):
     return {"ok": True, "items": store.list_assets(conn, modality=modality or None,
                                                    entity=entity or None, limit=limit)}
+
+
+@app.get("/v1/assets/{asset_id}")
+def asset_detail(asset_id: str, conn: Annotated[object, Depends(get_conn)]):
+    item = store.get_asset(conn, asset_id)
+    if not item:
+        raise HTTPException(status_code=404,
+                            detail={"reason": "asset_not_found", "asset_id": asset_id})
+    return {"ok": True, "item": item}
+
+
+@app.get("/v1/ontology/versions")
+def ontology_versions(limit: int = 50, conn: Annotated[object, Depends(get_conn)] = None):
+    return {"ok": True, "items": onto_version.list_versions(conn, limit=limit)}
 
 
 @app.post("/v1/ask")
