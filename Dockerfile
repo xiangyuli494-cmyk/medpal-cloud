@@ -10,15 +10,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# apps/api 提供 app 包、packages/core 提供 medpal_core；uvicorn 要按模块名导入 app.main
+ENV PYTHONPATH=/app/apps/api:/app/packages/core
+
 COPY pyproject.toml README.md ./
 COPY packages/core ./packages/core
 COPY apps ./apps
 RUN pip install --no-cache-dir -e .
 
 COPY data ./data
-COPY eval ./eval
-COPY tools ./tools
-COPY tests ./tests
 
 # 数据落在挂载卷上；容器重建不丢本体与决策链
 ENV MEDPAL_DATA_DIR=/app/data

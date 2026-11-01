@@ -6,8 +6,7 @@
 
 # lane C —— 底座与收口（t1）
 /packages/core/         @T1_HANDLE
-/contracts/             @T1_HANDLE
-/docs/solution/         @T1_HANDLE
+/docs/                  @T1_HANDLE
 /README.md              @T1_HANDLE
 /docs/04-*              @T1_HANDLE
 /docs/05-*              @T1_HANDLE
@@ -19,7 +18,7 @@
 /data/                  @T2_HANDLE
 
 # lane B —— 云与交付（t3）
-/providers/             @T3_HANDLE
+/packages/core/medpal_core/providers/   @T3_HANDLE
 /deploy/                @T3_HANDLE
 /scripts/               @T3_HANDLE
 /Dockerfile             @T3_HANDLE

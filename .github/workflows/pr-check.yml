@@ -22,7 +22,7 @@ jobs:
           HEAD_REF: ${{ github.head_ref }}
         run: |
           echo "分支: $HEAD_REF"
-          if ! printf '%s' "$HEAD_REF" | grep -Eq '^(feat|fix|docs|chore)/[a-z0-9][a-z0-9._-]*$'; then
+          if ! printf '%s' "$HEAD_REF" | grep -Eq '^(feat|fix|docs|chore)/[A-Za-z0-9][A-Za-z0-9._-]*$'; then
             echo "::error::分支名要是 feat/<编号>-<slug>、fix/、docs/、chore/ 四种前缀，当前 $HEAD_REF"
             exit 1
           fi
@@ -45,10 +45,15 @@ jobs:
           if [ "$LINES" -gt 400 ]; then
             echo "::warning::$LINES 行 > 400，按 docs/06 §4 拆成两个 PR"
           fi
+          if [ "$LINES" -gt 800 ]; then
+            echo "::error::$LINES 行 > 800，硬上限，必须拆"
+            exit 1
+          fi
           LANES=$(git diff --name-only "$RANGE" | awk 'BEGIN{c=0;a=0;b=0}
-            /^packages\/core|^contracts|^docs\/solution/ {c=1}
+            /^packages\/core\/medpal_core\/providers\// {b=1; next}
+            /^packages\/core\// {c=1}
             /^apps\/|^eval\/|^data\// {a=1}
-            /^providers\/|^deploy\/|^\.github\/|^Dockerfile|^scripts\/|^tools\// {b=1}
+            /^deploy\/|^\.github\/|^Dockerfile|^scripts\/|^tools\// {b=1}
             END {print c+a+b}')
           echo "涉及 lane 数: $LANES"
           if [ "$LANES" -gt 1 ]; then
