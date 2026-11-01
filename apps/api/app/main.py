@@ -21,10 +21,12 @@ from medpal_core.config import settings
 from medpal_core.llm import build_llm
 from medpal_core.ontology import store
 from medpal_core.ontology import version as onto_version
+from medpal_core.providers.huawei.config import load_config
+from medpal_core.storage.db import backend_name
 from medpal_core.trace import get_trace
 
 from . import __version__ as app_version
-from .deps import get_conn
+from .deps import get_conn, want_gaussdb
 from .pipeline import answer
 
 app = FastAPI(title="MedPal Cloud API", version=app_version,
@@ -58,8 +60,8 @@ def root():
         "name": "medpal-trace",
         "app_version": app_version,
         "core_version": core_version,
-        "endpoints": ["/health", "/v1/assets", "/v1/ask", "/v1/traces/{trace_id}",
-                      "/v1/ontology", "/v1/ontology/diff"],
+        "endpoints": ["/health", "/v1/cloud", "/v1/assets", "/v1/ask",
+                      "/v1/traces/{trace_id}", "/v1/ontology", "/v1/ontology/diff"],
         "web": "/web/" if WEB_DIR.exists() else None,
     }
 
@@ -76,9 +78,26 @@ def health(conn: Annotated[object, Depends(get_conn)]):
         "ontology_version": (cur or {}).get("version"),
         "assets": assets,
         "llm": cfg.llm_provider,
-        "storage": "sqlite",
+        "llm_ready": cfg.llm_provider != "offline",
+        "storage": backend_name(conn),
         "time": time.strftime("%Y-%m-%dT%H:%M:%S"),
     }
+
+
+@app.get("/v1/cloud")
+def cloud():
+    """云上就绪度：哪块插槽真接上了、缺哪个环境变量。"""
+    cfg = load_config()
+    ready = cfg.readiness()
+    missing = {
+        "obs": [] if ready["obs"] else ["HUAWEI_AK", "HUAWEI_SK", "HUAWEI_OBS_BUCKET"],
+        "gaussdb": [] if ready["gaussdb"] else ["HUAWEI_GAUSSDB_DSN"],
+        "modelarts": [] if ready["modelarts"] else ["HUAWEI_MODEL_ENDPOINT", "HUAWEI_MODEL_NAME"],
+        "koosearch": [] if ready["koosearch"] else ["HUAWEI_KOOSEARCH_ENDPOINT"],
+    }
+    return {"ok": True, "region": cfg.region, "ready": ready,
+            "missing": {k: v for k, v in missing.items() if v},
+            "storage_backend": "gaussdb" if want_gaussdb() else "sqlite"}
 
 
 @app.post("/v1/assets")

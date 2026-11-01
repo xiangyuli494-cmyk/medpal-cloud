@@ -1,13 +1,49 @@
-"""FastAPI 依赖：一条请求一个 SQLite 连接，退出时关掉。"""
+"""FastAPI 依赖：一条请求一个连接。后端由 MEDPAL_DB_BACKEND 决定，不再写死 sqlite。
+
+- 默认（或 MEDPAL_DB_BACKEND=sqlite）-> 本地 sqlite，零依赖可跑；
+- MEDPAL_DB_BACKEND=gaussdb（或只设了 HUAWEI_GAUSSDB_DSN）-> providers/huawei/gaussdb。
+
+两条路对端点完全一样：连接都支持 execute/commit/close，行都能按列名取。
+差别（? 与 %s、tuple 与 dict）在 providers 层抹平，业务代码零改动。
+"""
 
 from __future__ import annotations
+
+import os
 
 from medpal_core.config import settings
 from medpal_core.storage import connect
 
+GAUSS_ALIASES = {"gaussdb", "postgres", "postgresql"}
+_prepared = False
+
+
+def want_gaussdb() -> bool:
+    explicit = os.environ.get("MEDPAL_DB_BACKEND", "").strip().lower()
+    if explicit in GAUSS_ALIASES:
+        return True
+    if explicit and explicit != "auto":
+        return False
+    return bool(os.environ.get("HUAWEI_GAUSSDB_DSN"))
+
+
+def open_conn():
+    global _prepared
+
+    if not want_gaussdb():
+        return connect()
+
+    from medpal_core.providers.huawei import gaussdb
+
+    conn = gaussdb.connect()
+    if not _prepared:
+        gaussdb.prepare(conn)
+        _prepared = True
+    return conn
+
 
 def get_conn():
-    conn = connect()
+    conn = open_conn()
     try:
         yield conn
     finally:

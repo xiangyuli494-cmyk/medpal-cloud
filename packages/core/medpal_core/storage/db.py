@@ -107,3 +107,13 @@ def connect(target=None):
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
     return conn
+
+
+def backend_name(conn) -> str:
+    """连接的真实后端名（sqlite / gaussdb）。/health 用这个，不再写字面量。"""
+    name = getattr(conn, "backend", "")
+    if name:
+        return name
+    return {"sqlite3": "sqlite", "psycopg": "gaussdb", "psycopg2": "gaussdb"}.get(
+        type(conn).__module__.split(".")[0], "unknown"
+    )

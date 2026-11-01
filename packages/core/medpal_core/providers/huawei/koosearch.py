@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import httpx
 
-from .config import ProviderNotConfigured, load_config
+from .config import load_config
 
 
 class KooSearchRetriever:
@@ -21,7 +21,8 @@ class KooSearchRetriever:
         from ...retrieval.base import Hit
 
         if not self.available():
-            raise ProviderNotConfigured("缺少 HUAWEI_KOOSEARCH_ENDPOINT")
+            # 未配置时诚实返回空召回：消融实验的四条命令都要能跑完，不抛异常
+            return []
         r = httpx.post(self.cfg.koosearch_endpoint, json={"query": query,
                                                           "top_k": top_k or self.top_k},
                        timeout=20.0)
