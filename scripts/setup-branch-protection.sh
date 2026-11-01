@@ -81,7 +81,7 @@ if [ "$CODE" != "204" ] && [ "$CODE" != "200" ]; then
   exit 1
 fi
 
-curl -sS -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" "$API/branches/main/protection" | python -c "
+curl -sS -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" "$API/branches/main/protection" | PYTHONIOENCODING=utf-8 python -c "
 import sys, json
 d = json.load(sys.stdin)
 pr = d.get('required_pull_request_reviews') or {}
