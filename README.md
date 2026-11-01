@@ -143,7 +143,13 @@ dept_acc=1.0  exam_recall=1.0  completeness=1.0  avg_steps=6.5  avg_ms=11.3  (n=
 
 3 人：**t1**（队长，底座 / 方案书 / 答辩）、**t2**（应用与评测）、**t3**（云与交付）。
 
+仓库：<https://github.com/xiangyuli494-cmyk/medpal-cloud>
+
 `main` 是保护分支：**改动一律走 PR，1 人 approve 才合并，只有队长点 merge**，直推和无评审合并都被 GitHub 挡掉。
+
+已生效（实测直推被拒：`protected branch hook declined`）：PR 必须、approve=1、新提交作废旧 approve、4 个必绿检查（`test (3.11)` `test (3.12)` `meta` `size`）、必须 rebase 到最新 main、对话全解、禁强推、禁删分支、管理员同样受限（`enforce_admins`）。
+
+入队两件事：①队长在 Settings → Collaborators 把 t2/t3 加成 **Write**，否则他们连 review 按钮都没有；②t2/t3 首次克隆后 `git remote add upstream https://github.com/xiangyuli494-cmyk/medpal-cloud.git`，每天 `git pull --rebase upstream main`。
 
 - 逐条任务与**验收标准**：[docs/05-任务看板.md](docs/05-任务看板.md)
 - 分支 / review / approve / 合并规则：[docs/06-协作与分支规范.md](docs/06-协作与分支规范.md)

@@ -27,6 +27,9 @@ Thumbs.db
 # tooling scratch
 .dsh-ops-update-*.lock
 *.lock
+.protect.out
+.ci.log
+
 
 # local env
 .env
