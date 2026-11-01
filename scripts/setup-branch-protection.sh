@@ -52,6 +52,8 @@ d = {
     "required_conversation_resolution": True,
     "allow_force_pushes": False,
     "allow_deletions": False,
+    # PUT 接口要求这个键必须存在；没有就是 null（= 不限制推送人）
+    "restrictions": None,
 }
 if os.environ.get("CODEOWNER") == "1":
     d["required_pull_request_reviews"]["require_code_owner_reviews"] = True
@@ -64,6 +66,15 @@ PY
 OUT="$PWD/.protect.out"
 CODE="$(printf '%s' "$BODY" | curl -sS -o "$OUT" -w '%{http_code}' -X PUT "$API/branches/main/protection" \
   -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" -H "Content-Type: application/json" --data-binary @-)"
+if [ "$CODE" = "422" ] && [ "$FLAG_RESTRICT" = "1" ] && grep -q "organization repositories" "$OUT" 2>/dev/null; then
+  echo "！个人仓库不支持 Restrict who can push（只有 org 仓库有），自动退回「不加白名单」重试。"
+  echo "！等价做法：t2/t3 不给 write 权限，走 fork + PR，merge 仍然只有队长能做。"
+  FLAG_RESTRICT=0
+  BODY="$(printf '%s' "$BODY" | python -c "import json,sys; d=json.load(sys.stdin); d['restrictions'] = None; print(json.dumps(d))")"
+  CODE="$(printf '%s' "$BODY" | curl -sS -o "$OUT" -w '%{http_code}' -X PUT "$API/branches/main/protection" \
+    -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" -H "Content-Type: application/json" --data-binary @-)"
+fi
+
 if [ "$CODE" != "204" ] && [ "$CODE" != "200" ]; then
   echo "PUT 失败 HTTP $CODE"
   python -c "import json;d=json.load(open('$OUT'));print(d.get('message'));print((d.get('errors') or [''])[0])" 2>/dev/null || cat "$OUT"
@@ -74,7 +85,7 @@ curl -sS -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+js
 import sys, json
 d = json.load(sys.stdin)
 pr = d.get('required_pull_request_reviews') or {}
-checks = [c['context'] for c in d.get('required_status_checks', {}).get('contexts', [])]
+checks = d.get('required_status_checks', {}).get('contexts', []) or []
 print('approve 数     :', pr.get('required_approving_review_count'))
 print('撤销旧 approve :', pr.get('dismiss_stale_reviews'))
 print('code owner 审  :', pr.get('require_code_owner_reviews', False))
