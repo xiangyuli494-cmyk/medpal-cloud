@@ -2,8 +2,8 @@
 # 给 main 加保护：PR + 1 人 approve + CI 必绿 + 禁止直推/强推/删分支。
 # 用法：bash scripts/setup-branch-protection.sh [OWNER/REPO] [--restrict] [--codeowner]
 #   --restrict   只有队长能 push（公开仓 / Team 计划可用；免费私仓会返回 422）
-#   --codeowner  要求 CODEOWNERS 里的人 approve。**先把 T1_HANDLE/T2_HANDLE/T3_HANDLE 换成真账号再开**，
-#                否则 t1 自己的 PR 找不到可批准的 code owner，会永久卡在门禁上。
+#   --codeowner  要求 CODEOWNERS 里的人 approve。账号已填真名（xiangyuli494-cmyk / suyouZJF / zincumyu），
+#                但首行 * 的 owner 是队长本人，开了会让队长的 PR 自锁 —— 默认不要开。
 # token 来源：$GITHUB_TOKEN → gh auth token → git credential（GCM 缓存），三者取到即可，无需装 gh。
 set -euo pipefail
 

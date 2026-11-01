@@ -1,28 +1,29 @@
 # 谁必须 review 哪些路径（t1 = 队长）
-# 把 T2_HANDLE / T3_HANDLE 换成实际 GitHub 用户名后再提交；不换的话保护规则会一直等人。
+# 已填真账号：t1 @xiangyuli494-cmyk（队长）· t2 @suyouZJF · t3 @zincumyu。
+# 注意：首行 * 的 owner 是队长本人，所以不要开 Require review from Code Owners —— 队长自己提 PR 时没法给自己 approve，会自锁。
 
 # 默认：队长兜底
-*                       @T1_HANDLE
+*                       @xiangyuli494-cmyk
 
 # lane C —— 底座与收口（t1）
-/packages/core/         @T1_HANDLE
-/docs/                  @T1_HANDLE
-/README.md              @T1_HANDLE
-/docs/04-*              @T1_HANDLE
-/docs/05-*              @T1_HANDLE
-/docs/06-*              @T1_HANDLE
+/packages/core/         @xiangyuli494-cmyk
+/docs/                  @xiangyuli494-cmyk
+/README.md              @xiangyuli494-cmyk
+/docs/04-*              @xiangyuli494-cmyk
+/docs/05-*              @xiangyuli494-cmyk
+/docs/06-*              @xiangyuli494-cmyk
 
 # lane A —— 应用与评测（t2）
-/apps/                  @T2_HANDLE
-/eval/                  @T2_HANDLE
-/data/                  @T2_HANDLE
+/apps/                  @suyouZJF
+/eval/                  @suyouZJF
+/data/                  @suyouZJF
 
 # lane B —— 云与交付（t3）
-/packages/core/medpal_core/providers/   @T3_HANDLE
-/deploy/                @T3_HANDLE
-/scripts/               @T3_HANDLE
-/Dockerfile             @T3_HANDLE
-/tools/                 @T3_HANDLE
+/packages/core/medpal_core/providers/   @zincumyu
+/deploy/                @zincumyu
+/scripts/               @zincumyu
+/Dockerfile             @zincumyu
+/tools/                 @zincumyu
 
 # 仓库级配置：改动需要队长 + 云交付一起看
-/.github/               @T1_HANDLE @T3_HANDLE
+/.github/               @xiangyuli494-cmyk @zincumyu
