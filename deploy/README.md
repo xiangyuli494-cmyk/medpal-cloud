@@ -5,9 +5,9 @@
 ## 1. 构建并推镜像
 
 ~~~bash
-docker build -t medpal-cloud:0.1.0 .
-docker tag medpal-cloud:0.1.0 swr.cn-north-4.myhuaweicloud.com/<ORG>/medpal-cloud:0.1.0
-docker push swr.cn-north-4.myhuaweicloud.com/<ORG>/medpal-cloud:0.1.0
+docker build -t medpal-trace:0.1.0 .
+docker tag medpal-trace:0.1.0 swr.cn-north-4.myhuaweicloud.com/<ORG>/medpal-trace:0.1.0
+docker push swr.cn-north-4.myhuaweicloud.com/<ORG>/medpal-trace:0.1.0
 ~~~
 
 ## 2. 准备云资源

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://medpal-cloud.local/schemas/trace.schema.json",
+  "$id": "https://medpal-trace.local/schemas/trace.schema.json",
   "title": "medpal-trace/1",
   "description": "决策链（trace.json）v1 契约，与 medpal_core.contracts.models / trace.writer 字段一一对应。核心规则：evidence 每条都必须能被 _evidence_exists 核对到，否则计入 unresolved。",
   "type": "object",

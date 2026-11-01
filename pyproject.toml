@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "medpal-cloud"
+name = "medpal-trace"
 version = "0.1.0"
 description = "赛题1：基于华为云产品打造的 AI 创新应用 —— 可复用智能底座 + 可追溯决策链"
 readme = "README.md"

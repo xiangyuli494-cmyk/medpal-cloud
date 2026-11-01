@@ -18,7 +18,7 @@ for a in "${@:-}"; do
     *)           REPO="$a" ;;
   esac
 done
-REPO="${REPO:-xiangyuli494-cmyk/medpal-cloud}"
+REPO="${REPO:-xiangyuli494-cmyk/medpal-trace}"
 OWNER="${REPO%%/*}"
 NAME="${REPO##*/}"
 

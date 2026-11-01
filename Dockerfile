@@ -1,6 +1,6 @@
 # 云上形态：一个镜像同时承载 API 与演示页，环境变量决定后端实现。
-# 构建：docker build -t medpal-cloud:0.1.0 .
-# 运行：docker run -p 8000:8000 -e MEDPAL_LLM=offline -v $PWD/data:/app/data medpal-cloud:0.1.0
+# 构建：docker build -t medpal-trace:0.1.0 .
+# 运行：docker run -p 8000:8000 -e MEDPAL_LLM=offline -v $PWD/data:/app/data medpal-trace:0.1.0
 FROM python:3.12-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

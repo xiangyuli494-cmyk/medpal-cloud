@@ -55,7 +55,7 @@ class SnapshotIn(BaseModel):
 @app.get("/")
 def root():
     return {
-        "name": "medpal-cloud",
+        "name": "medpal-trace",
         "app_version": app_version,
         "core_version": core_version,
         "endpoints": ["/health", "/v1/assets", "/v1/ask", "/v1/traces/{trace_id}",

@@ -1,7 +1,10 @@
-# MedPal Cloud
+# MedPal Trace
 
 > 华为 ICT 创新赛 · 赛题1「基于华为云产品打造 AI 创新应用」参赛仓
-> 一句话：**把医疗数据资产变成可推理、可追溯、可复用的智能底座，再用华为云把它跑起来。**
+> 一句话：**把医疗数据资产变成可推理、可追溯、可复用的智能底座。**
+>
+> 仓名取 trace（溯源）而不是 cloud：**我们做的是应用，不是云服务**。华为云是这套东西跑起来的底子，
+> 卖点是那条每步都能核对的证据链 —— 换任何一朵云，能力都在；没有证据链，换个名字也不成立。
 
 本仓是一个**新仓**，与团队既有的「院内智慧陪诊终端」（medpal）是两个独立仓库：
 medpal 继续跑赛题3 的 Nexent 智能体线，本仓只承载赛题1。底座**复制**过来而不是搬走，
@@ -31,7 +34,7 @@ medpal 一行不动。为什么要新开一个仓、复用了哪些、边界怎�
 前置：Python ≥ 3.11。
 
 ~~~bash
-git clone <REPO_URL> medpal-cloud && cd medpal-cloud
+git clone <REPO_URL> medpal-trace && cd medpal-trace
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 
@@ -53,7 +56,7 @@ POSIX 用冒号 + 斜杠），所以不用手写路径。想直接 `python -m ap
 ## 3. 结构：core 是底座，apps 是外壳
 
 ~~~text
-medpal-cloud/
+medpal-trace/
 ├── packages/core/medpal_core/        # 底座（不许 import apps，不许出现行业术语）
 │   ├── contracts/                    # 协议层：Step/Trace 数据结构 + trace.schema.json + 校验器
 │   ├── assets/                       # 资产层：parsers（多模态解析）/ entity（词表驱动）/ card（入库）
@@ -143,13 +146,13 @@ dept_acc=1.0  exam_recall=1.0  completeness=1.0  avg_steps=6.5  avg_ms=11.3  (n=
 
 3 人：**t1**（队长，底座 / 方案书 / 答辩）、**t2**（应用与评测）、**t3**（云与交付）。
 
-仓库：<https://github.com/xiangyuli494-cmyk/medpal-cloud>
+仓库：<https://github.com/xiangyuli494-cmyk/medpal-trace>
 
 `main` 是保护分支：**改动一律走 PR，1 人 approve 才合并，只有队长点 merge**，直推和无评审合并都被 GitHub 挡掉。
 
 已生效（实测直推被拒：`protected branch hook declined`）：PR 必须、approve=1、新提交作废旧 approve、4 个必绿检查（`test (3.11)` `test (3.12)` `meta` `size`）、必须 rebase 到最新 main、对话全解、禁强推、禁删分支、管理员同样受限（`enforce_admins`）。
 
-入队两件事：①队长在 Settings → Collaborators 把 t2/t3 加成 **Write**，否则他们连 review 按钮都没有；②t2/t3 首次克隆后 `git remote add upstream https://github.com/xiangyuli494-cmyk/medpal-cloud.git`，每天 `git pull --rebase upstream main`。
+入队两件事：①队长在 Settings → Collaborators 把 t2/t3 加成 **Write**，否则他们连 review 按钮都没有；②t2/t3 首次克隆后 `git remote add upstream https://github.com/xiangyuli494-cmyk/medpal-trace.git`，每天 `git pull --rebase upstream main`。
 
 - 逐条任务与**验收标准**：[docs/05-任务看板.md](docs/05-任务看板.md)
 - 分支 / review / approve / 合并规则：[docs/06-协作与分支规范.md](docs/06-协作与分支规范.md)
