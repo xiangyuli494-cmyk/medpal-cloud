@@ -1,9 +1,9 @@
 """边界检查：底座到底是不是「可复用」。
 
 三条规则，任何一条挂了 CI 就红：
-  B1  packages/core 不得 import 应用层（apps / app），依赖方向只能 apps -> core。
-  B2  云厂商 SDK 只允许出现在 medpal_core/providers/ 下。
-  B3  core 里不得出现行业词表里的术语 —— 领域知识必须待在 data/lexicon/medical.json。
+  BND1  packages/core 不得 import 应用层（apps / app），依赖方向只能 apps -> core。
+  BND2  云厂商 SDK 只允许出现在 medpal_core/providers/ 下。
+  BND3  core 里不得出现行业词表里的术语 —— 领域知识必须待在 data/lexicon/medical.json。
       这条是「与行业无关」这句话的机器证明，不是文档口号。
 
 用法：python tools/check_boundaries.py [--root .] [--json]
@@ -36,7 +36,7 @@ def _code_only(path: Path) -> str:
     """去掉注释与字符串（含 docstring），只留下真正会被执行的标识符与符号。
 
     领域词出现在文档字符串里是「解释」，出现在代码里才是「耦合」——
-    这条区分决定了 B3 检查是可用的还是只会逼人删注释。
+    这条区分决定了 BND3 检查是可用的还是只会逼人删注释。
     """
     keep = {tokenize.NAME, tokenize.OP, tokenize.NUMBER}
     out = []
@@ -72,9 +72,9 @@ def check(root: Path = Path(".")) -> list:
         for mod in _imports(tree):
             top = mod.split(".")[0]
             if top in APP_TOPS:
-                violations.append(("B1", str(rel), "core 反向依赖应用层: " + mod))
+                violations.append(("BND1", str(rel), "core 反向依赖应用层: " + mod))
             if top in VENDOR_SDKS and not str(rel).replace("\\", "/").startswith(PROVIDERS.as_posix()):
-                violations.append(("B2", str(rel), "云/数据库 SDK 出现在 providers 之外: " + mod))
+                violations.append(("BND2", str(rel), "云/数据库 SDK 出现在 providers 之外: " + mod))
 
     lex_path = root / LEXICON
     if lex_path.exists():
@@ -86,7 +86,7 @@ def check(root: Path = Path(".")) -> list:
                 continue
             for t in terms:
                 if t in text:
-                    violations.append(("B3", str(rel), "core 里出现行业术语: " + t))
+                    violations.append(("BND3", str(rel), "core 里出现行业术语: " + t))
     return violations
 
 

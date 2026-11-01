@@ -125,9 +125,9 @@ dept_acc=1.0  exam_recall=1.0  completeness=1.0  avg_steps=6.5  avg_ms=11.3  (n=
 
 `python tools/check_boundaries.py` 在 CI 里跑，红一条就卡：
 
-- **B1** `packages/core` 不得 import 应用层 —— 保底座可复用。
-- **B2** 云厂商 SDK 只许出现在 `providers/` —— 保「换云只换一个目录」。
-- **B3** core 的可执行代码里不得出现行业术语（词表里的词）—— 保「与行业无关」。
+- **BND1** `packages/core` 不得 import 应用层 —— 保底座可复用。
+- **BND2** 云厂商 SDK 只许出现在 `providers/` —— 保「换云只换一个目录」。
+- **BND3** core 的可执行代码里不得出现行业术语（词表里的词）—— 保「与行业无关」。
   注释和 docstring 不算，那里出现是解释；代码里出现才是耦合。
 
 另有 `tools/check_guard_words.py` 扫 README / docs / 样本 / 演示页，

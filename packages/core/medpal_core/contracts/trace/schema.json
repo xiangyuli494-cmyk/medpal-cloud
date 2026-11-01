@@ -79,7 +79,11 @@
       "type": "number",
       "minimum": 0,
       "maximum": 1,
-      "description": "溯源完整率 = 1 - len(unresolved)/len(cited)，cited 为空时记 1.0（store.py:534）。"
+      "description": "溯源完整率 = 1 - len(unresolved)/len(cited)。cited 为空时记 1.0，但 refusal 同时为 true：报告写「—（拒答，不计分）」，评测按 0 记。"
+    },
+    "refusal": {
+      "type": "boolean",
+      "description": "true = 零引用（拒答）。可选字段，缺省视作 false，兼容旧 trace。"
     },
     "unresolved": {
       "type": "array",
