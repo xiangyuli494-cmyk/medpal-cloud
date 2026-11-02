@@ -63,7 +63,12 @@ CREATE TABLE IF NOT EXISTS trace (
     steps_json       TEXT,
     gaps_json        TEXT,
     elapsed_ms       INTEGER,
-    created_at       TEXT
+    created_at       TEXT,
+    sources_json     TEXT,
+    conclusion_json  TEXT,
+    completeness     REAL,
+    refusal          INTEGER DEFAULT 0,
+    unresolved_json  TEXT
 );
 CREATE TABLE IF NOT EXISTS alias (
     surface     TEXT PRIMARY KEY,
@@ -100,12 +105,38 @@ def report_dir() -> Path:
 def now() -> str:
     return datetime.now(CST).isoformat(timespec="seconds")
 
+# 老库补列：CREATE TABLE IF NOT EXISTS 不会给已存在的表加字段，
+# 而 /v1/traces/{id} 要能直接当 schema 合法对象返回，缺列就没法回读完整率。
+_TRACE_EXTRA_COLUMNS = {
+    "sources_json": "TEXT",
+    "conclusion_json": "TEXT",
+    "completeness": "REAL",
+    "refusal": "INTEGER DEFAULT 0",
+    "unresolved_json": "TEXT",
+}
+
+
+def _migrate(conn) -> None:
+    try:
+        have = {r[1] for r in conn.execute("PRAGMA table_info(trace)").fetchall()}
+    except Exception:  # 非 sqlite 后端（gaussdb）不走这条补列路径
+        return
+    if not have:
+        return
+    added = [c for c in _TRACE_EXTRA_COLUMNS if c not in have]
+    for col in added:
+        conn.execute(f"ALTER TABLE trace ADD COLUMN {col} {_TRACE_EXTRA_COLUMNS[col]}")
+    if added:
+        conn.commit()
+
+
 def connect(target=None):
     path = Path(target) if target else db_file()
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    _migrate(conn)
     return conn
 
 

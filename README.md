@@ -41,7 +41,8 @@ pip install -e ".[dev]"
 
 bash tools/dev.sh seed                                  # 灌合成样本 + 8 条演示三元组 + 打 v1.0 快照
 bash tools/dev.sh api                                   # http://127.0.0.1:8000/  （演示页在 /web/）
-bash tools/dev.sh all                                   # seed + 30 项测试 + 边界检查 + 评测
+bash tools/dev.sh all                                   # seed + 测试 + 边界检查 + 评测
+bash scripts/verify.sh                                  # 一键验收：PASS 才算能提交（--fast 跳过评测）
 ~~~
 
 不便装依赖也行 —— **离线默认零外部服务**：SQLite 存本体，BM25 做召回，FakeLLM 占位，

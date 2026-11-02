@@ -13,6 +13,9 @@ from datetime import datetime
 from ..ontology.version import current_version
 from ..storage.db import CST, now, report_dir
 
+SCHEMA_ID = "medpal-trace/1"
+
+
 
 def _evidence_exists(conn, ref):
     ref = str(ref)
@@ -50,23 +53,6 @@ def write_trace(conn, question, steps, agent_version="v1.0", elapsed_ms=0, gaps=
     tid = "TR-" + datetime.now(CST).strftime("%Y%m%d") + "-" + uuid.uuid4().hex[:4].upper()
     cur = current_version(conn)
     onto = cur["version"] if cur else "v0.9"
-    conn.execute(
-        "INSERT INTO trace "
-        "(trace_id,question,agent_version,ontology_version,steps_json,gaps_json,"
-        "elapsed_ms,created_at) "
-        "VALUES (?,?,?,?,?,?,?,?)",
-        (
-            tid,
-            question,
-            agent_version,
-            onto,
-            json.dumps(steps, ensure_ascii=False),
-            json.dumps(gaps or [], ensure_ascii=False),
-            int(elapsed_ms),
-            now(),
-        ),
-    )
-    conn.commit()
 
     cited = []
     for s in steps:
@@ -79,6 +65,39 @@ def write_trace(conn, question, steps, agent_version="v1.0", elapsed_ms=0, gaps=
     # 本身不依赖证据，不构成不可追溯。报告里会显式写「证据数 0」以示区分。
     refusal = not cited
     completeness = round(1 - len(unresolved) / len(cited), 3) if cited else 1.0
+
+    conclusion = {}
+    for s in steps:
+        out = s.get("out")
+        if s.get("op") == "conclude" and isinstance(out, dict):
+            conclusion = out
+    from ..contracts.trace.validator import derive_sources
+
+    sources = derive_sources({"steps": steps}, conn)
+
+    conn.execute(
+        "INSERT INTO trace "
+        "(trace_id,question,agent_version,ontology_version,steps_json,gaps_json,"
+        "elapsed_ms,created_at,sources_json,conclusion_json,completeness,refusal,"
+        "unresolved_json) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            tid,
+            question,
+            agent_version,
+            onto,
+            json.dumps(steps, ensure_ascii=False),
+            json.dumps(gaps or [], ensure_ascii=False),
+            int(elapsed_ms),
+            now(),
+            json.dumps(sources, ensure_ascii=False),
+            json.dumps(conclusion, ensure_ascii=False),
+            completeness,
+            1 if refusal else 0,
+            json.dumps(unresolved, ensure_ascii=False),
+        ),
+    )
+    conn.commit()
 
     report_dir().mkdir(parents=True, exist_ok=True)
     report = report_dir() / (tid + ".md")
@@ -123,6 +142,7 @@ def write_trace(conn, question, steps, agent_version="v1.0", elapsed_ms=0, gaps=
         "trace_completeness": completeness,
         "refusal": refusal,
         "unresolved": unresolved,
+        "sources": sources,
     }
 
 
@@ -130,7 +150,10 @@ def get_trace(conn, trace_id):
     row = conn.execute("SELECT * FROM trace WHERE trace_id = ?", (trace_id,)).fetchone()
     if not row:
         return None
+    # 直接返回 schema 合法对象：契约冻结后 /v1/traces/{id} 必须能过 validate()，
+    # 否则前端与评测各自补字段，口径立刻分叉。
     return {
+        "schema": SCHEMA_ID,
         "trace_id": row["trace_id"],
         "question": row["question"],
         "agent_version": row["agent_version"],
@@ -139,4 +162,9 @@ def get_trace(conn, trace_id):
         "gaps": json.loads(row["gaps_json"]),
         "elapsed_ms": row["elapsed_ms"],
         "created_at": row["created_at"],
+        "sources": json.loads(row["sources_json"] or "[]"),
+        "conclusion": json.loads(row["conclusion_json"] or "{}"),
+        "trace_completeness": row["completeness"] if row["completeness"] is not None else 1.0,
+        "refusal": bool(row["refusal"]),
+        "unresolved": json.loads(row["unresolved_json"] or "[]"),
     }
