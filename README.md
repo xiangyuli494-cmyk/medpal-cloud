@@ -72,8 +72,9 @@ medpal-trace/
 ├── apps/web/index.html               # 单文件演示页（无构建、无依赖）
 ├── data/                             # 词表、合成样本、本体种子
 ├── eval/                             # 评测集与指标脚本
-├── tests/                            # 30 项测试，含边界检查自身的测试
+├── tests/                            # 41 项测试，含边界检查自身的测试
 ├── tools/                            # check_boundaries / check_guard_words / dev.sh
+├── scripts/                          # verify.sh 一键验收 / smoke_verify / setup-branch-protection
 └── docs/                             # 赛题理解、架构、云映射、复用清单、路线图
 ~~~
 
@@ -161,3 +162,4 @@ dept_acc=1.0  exam_recall=1.0  completeness=1.0  avg_steps=6.5  avg_ms=11.3  (n=
 - 分支 / review / approve / 合并规则：[docs/06-协作与分支规范.md](docs/06-协作与分支规范.md)
 - 节奏、Gate、裁剪顺序：[docs/04-路线图.md](docs/04-路线图.md)
 - 云资源申请与就绪状态：[docs/cloud-resources.md](docs/cloud-resources.md)
+- 开工检查（就绪表 + 今天要做的事）：[docs/07-开工检查.md](docs/07-开工检查.md)
