@@ -164,3 +164,4 @@ dept_acc=1.0  exam_recall=1.0  completeness=1.0  avg_steps=6.5  avg_ms=11.3  (n=
 - 云资源申请与就绪状态：[docs/cloud-resources.md](docs/cloud-resources.md)
 - 开工检查（就绪表 + 今天要做的事）：[docs/07-开工检查.md](docs/07-开工检查.md)
 - 队长视角的 W1 打法（day by day + 命令）：[docs/08-t1-W1执行手册.md](docs/08-t1-W1执行手册.md)
+- W1 打卡表（14 项 + 日站会 + G1 勾选）：[docs/09-W1打卡表.md](docs/09-W1打卡表.md)
