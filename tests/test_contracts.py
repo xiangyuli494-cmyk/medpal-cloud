@@ -60,3 +60,28 @@ def test_build_trace_shape():
     t = build_trace("q", [Step(i=1, op="conclude", out={})], "v1.0", "v1.0")
     assert t["schema"] == "medpal-trace/1"
     assert set(REF_BY_OP) >= {s["op"] for s in t["steps"]}
+
+
+def test_frozen_v1_digest():
+    """C1：契约冻结 —— 动 schema 必须同时升版本并改这里。"""
+    import hashlib
+    import json
+    import pathlib
+
+    path = (pathlib.Path(__file__).resolve().parents[1]
+            / "packages/core/medpal_core/contracts/trace/schema.json")
+    raw = path.read_bytes()
+    assert len(raw) == 5934
+    assert hashlib.sha256(raw).hexdigest() == (
+        "d3d242b78f2e0476a9150f677012fb3dd57d5ee996ef1be97e01b544bb081a81"
+    )
+
+    schema = json.loads(raw.decode("utf-8"))
+    assert set(schema["required"]) == {
+        "schema", "trace_id", "question", "agent_version",
+        "ontology_version", "steps", "gaps", "trace_completeness",
+    }
+    text = json.dumps(schema, ensure_ascii=False)
+    for op in ("retrieve", "entity_extract", "std_align",
+               "kg_query", "conflict_check", "conclude"):
+        assert f'"{op}"' in text
