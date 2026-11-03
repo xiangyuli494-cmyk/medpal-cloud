@@ -31,9 +31,12 @@ def snapshot(conn, version, note=""):
     digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
     conn.execute("UPDATE version SET is_current = 0")
     conn.execute(
-        "INSERT OR REPLACE INTO version "
+        "INSERT INTO version "
         "(version,created_at,triple_count,manifest_hash,note,is_current) "
-        "VALUES (?,?,?,?,?,1)",
+        "VALUES (?,?,?,?,?,1) "
+        "ON CONFLICT(version) DO UPDATE SET created_at=excluded.created_at,"
+        "triple_count=excluded.triple_count,manifest_hash=excluded.manifest_hash,"
+        "note=excluded.note,is_current=excluded.is_current",
         (version, now(), len(rows), digest, note),
     )
     conn.commit()

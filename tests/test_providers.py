@@ -16,13 +16,19 @@ def test_no_credentials_means_not_ready():
     assert OBSStore(cfg).available() is False
 
 
-def test_obs_without_sdk_raises_with_hint():
+def test_obs_without_sdk_raises_with_hint(monkeypatch):
+    import sys
+
     from medpal_core.providers.huawei.config import ProviderNotConfigured
 
+    # 必须把 SDK 真的挡掉：本机装了 esdk-obs-python 时，原写法会直接连上云端，
+    # 测试结果取决于环境——CI 绿本地红，这种测试比没有还糟。
+    monkeypatch.setitem(sys.modules, "obs", None)
     store = OBSStore(HuaweiConfig(ak="a", sk="b", obs_bucket="bucket"))
     assert store.available() is True
-    with pytest.raises(ProviderNotConfigured):
+    with pytest.raises(ProviderNotConfigured) as ei:
         store._c()
+    assert "esdk-obs-python" in str(ei.value)
 
 
 def test_default_llm_is_offline():

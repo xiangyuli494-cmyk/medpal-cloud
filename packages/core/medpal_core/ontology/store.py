@@ -37,10 +37,16 @@ def upsert_asset(conn, card):
         "AST-" + datetime.now(CST).strftime("%Y") + "-" + uuid.uuid4().hex[:6]
     )
     conn.execute(
-        "INSERT OR REPLACE INTO asset "
+        "INSERT INTO asset "
         "(asset_id,title,modality,source_json,version_json,sensitivity,"
         "structure_json,anchors_json,entities_json,kb_status,ingested_by,created_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?) "
+        "ON CONFLICT(asset_id) DO UPDATE SET "
+        "title=excluded.title,modality=excluded.modality,source_json=excluded.source_json,"
+        "version_json=excluded.version_json,sensitivity=excluded.sensitivity,"
+        "structure_json=excluded.structure_json,anchors_json=excluded.anchors_json,"
+        "entities_json=excluded.entities_json,kb_status=excluded.kb_status,"
+        "ingested_by=excluded.ingested_by,created_at=excluded.created_at",
         (
             aid,
             card.get("title", ""),
