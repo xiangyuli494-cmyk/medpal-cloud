@@ -158,6 +158,49 @@ def neighbors(conn, node_ids, rel_filter=None):
     return conn.execute(sql, args).fetchall()
 
 
+def find_conflicts(conn, triples=None, limit=50):
+    """查「同一 head + 同一 rel 指向多个不同 tail」的冲突组。
+
+    triples 给了就只查这些 triple_id 落在的分组（pipeline 用来查本次推理用到的边），
+    否则全库扫。冲突不自动裁决——只把矛盾摆出来，让人看见。
+    """
+    rows = conn.execute(
+        "SELECT triple_id,head_id,head_label,head_type,rel,tail_id,tail_label,"
+        "tail_type,confidence,asset_id,anchor_id FROM triple WHERE status='active'"
+    ).fetchall()
+    wanted = set(triples or [])
+    groups = {}
+    for r in rows:
+        groups.setdefault((r["head_id"], r["rel"]), []).append(r)
+
+    conflicts = []
+    for (head_id, rel), items in groups.items():
+        if wanted and not any(i["triple_id"] in wanted for i in items):
+            continue
+        tails = {i["tail_id"] for i in items}
+        if len(tails) < 2:
+            continue
+        conflicts.append({
+            "head_id": head_id,
+            "head_label": items[0]["head_label"],
+            "head_type": items[0]["head_type"],
+            "rel": rel,
+            "tails": [
+                {
+                    "triple_id": i["triple_id"],
+                    "tail_id": i["tail_id"],
+                    "tail_label": i["tail_label"],
+                    "tail_type": i["tail_type"],
+                    "confidence": i["confidence"],
+                    "provenance": {"asset_id": i["asset_id"], "anchor_id": i["anchor_id"]},
+                }
+                for i in items
+            ],
+            "triple_ids": [i["triple_id"] for i in items],
+        })
+    conflicts.sort(key=lambda c: (-len(c["tails"]), c["head_id"]))
+    return {"ok": True, "groups": len(groups), "conflicts": conflicts[: int(limit)]}
+
 def kg_query(conn, seeds, max_hops=2, rel_filter=None, limit=20):
     """从种子实体出发做多跳广度遍历，返回带 provenance 的路径。"""
     seeds = [s.strip() for s in seeds if s and s.strip()]
