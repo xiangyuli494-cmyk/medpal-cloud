@@ -28,7 +28,7 @@ class FakeLLM:
 
 def build_llm(cfg=None) -> LLM:
     cfg = cfg or settings()
-    if cfg.llm_provider in {"openai", "modelarts", "pangu"}:
+    if cfg.llm_provider in {"openai", "modelarts", "pangu", "huawei"}:
         from .openai_compatible import OpenAICompatibleLLM
 
         return OpenAICompatibleLLM(

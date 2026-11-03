@@ -16,9 +16,12 @@ def test_no_credentials_means_not_ready():
     assert OBSStore(cfg).available() is False
 
 
-def test_obs_without_sdk_raises_with_hint():
+def test_obs_without_sdk_raises_with_hint(monkeypatch):
+    import sys
+
     from medpal_core.providers.huawei.config import ProviderNotConfigured
 
+    monkeypatch.setitem(sys.modules, "obs", None)
     store = OBSStore(HuaweiConfig(ak="a", sk="b", obs_bucket="bucket"))
     assert store.available() is True
     with pytest.raises(ProviderNotConfigured):

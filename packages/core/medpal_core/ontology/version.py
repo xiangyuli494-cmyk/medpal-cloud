@@ -31,9 +31,13 @@ def snapshot(conn, version, note=""):
     digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
     conn.execute("UPDATE version SET is_current = 0")
     conn.execute(
-        "INSERT OR REPLACE INTO version "
+        "INSERT INTO version "
         "(version,created_at,triple_count,manifest_hash,note,is_current) "
-        "VALUES (?,?,?,?,?,1)",
+        "VALUES (?,?,?,?,?,1) "
+        "ON CONFLICT(version) DO UPDATE SET "
+        "created_at=excluded.created_at,triple_count=excluded.triple_count,"
+        "manifest_hash=excluded.manifest_hash,note=excluded.note,"
+        "is_current=excluded.is_current",
         (version, now(), len(rows), digest, note),
     )
     conn.commit()
@@ -83,13 +87,3 @@ def diff_versions(conn, old, new):
         "modified": modified,
         "counts": {"added": len(added), "removed": len(removed), "modified": len(modified)},
     }
-
-
-def list_versions(conn, limit=50):
-    """版本列表，新到旧。GET /v1/ontology/versions 用。"""
-    rows = conn.execute(
-        "SELECT version,created_at,triple_count,manifest_hash,note,is_current "
-        "FROM version ORDER BY created_at DESC LIMIT ?",
-        (int(limit),),
-    ).fetchall()
-    return [dict(r) for r in rows]
