@@ -105,7 +105,7 @@ def connect(dsn: str = "", cfg=None):
     cfg = cfg or load_config()
     dsn = dsn or cfg.gaussdb_dsn
     if not dsn:
-        raise ProviderNotConfigured("缺少 HUAWEI_GAUSSDB_DSN")
+        raise ProviderNotConfigured("缺少 MEDPAL_DB_DSN 或 HUAWEI_GAUSSDB_DSN")
     psycopg, dict_row = _driver()
     conn = psycopg.connect(dsn)
     conn.autocommit = True
