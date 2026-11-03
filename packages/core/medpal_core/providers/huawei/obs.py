@@ -7,6 +7,21 @@ from pathlib import Path
 from .config import ProviderNotConfigured, load_config
 
 
+def read_body(body) -> bytes:
+    """拿对象字节。esdk-obs-python 的坑：不传 loadStreamInMemory=True 时 body 是
+    一个 buffer=None 的 ObjectStream（连 read 都是 None），直接取 .buffer 拿到 None。
+    正解是请求时就要内存流；这里再兜一层 callable read() 的老版本。
+    """
+    buf = getattr(body, "buffer", None)
+    if buf is not None:
+        return bytes(buf)
+    reader = getattr(body, "read", None)
+    if callable(reader):
+        data = reader()
+        return data if isinstance(data, (bytes, bytearray)) else bytes(data or b"")
+    return b""
+
+
 class OBSStore:
     name = "huawei-obs"
 
@@ -38,5 +53,7 @@ class OBSStore:
 
     def get(self, key: str) -> bytes:
         client = self._c()
-        resp = client.getObject(self.cfg.obs_bucket, key)
-        return resp.body.buffer if hasattr(resp.body, "buffer") else resp.body
+        resp = client.getObject(self.cfg.obs_bucket, key, loadStreamInMemory=True)
+        if getattr(resp, "status", 0) >= 300:
+            raise ProviderNotConfigured("OBS 下载失败: {}".format(getattr(resp, "reason", resp)))
+        return read_body(resp.body)

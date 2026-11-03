@@ -99,9 +99,12 @@ def main(argv=None) -> int:
 
         print("")
         print("4) 回读并比对")
-        got = client.getObject(bucket, KEY)
-        raw = got.body.buffer if hasattr(got.body, "buffer") else got.body
-        text = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
+        got = client.getObject(bucket, KEY, loadStreamInMemory=True)
+        raw = getattr(got.body, "buffer", None)
+        if raw is None:
+            reader = getattr(got.body, "read", None)
+            raw = reader() if callable(reader) else b""
+        text = raw.decode("utf-8") if isinstance(raw, (bytes, bytearray)) else str(raw)
         if got.status >= 300 or text != BODY:
             print("   [X] get 内容不一致 " + str(got.status))
             return 4
