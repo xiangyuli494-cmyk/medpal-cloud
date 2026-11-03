@@ -27,9 +27,10 @@ class Settings:
 def settings() -> Settings:
     return Settings(
         llm_provider=env("MEDPAL_LLM", "offline"),
-        llm_model=env("MEDPAL_LLM_MODEL"),
-        llm_base_url=env("MEDPAL_LLM_BASE_URL"),
-        llm_api_key=env("MEDPAL_LLM_API_KEY"),
+        # MEDPAL_LLM_* 是唯一入口；HUAWEI_MODEL_* 是早期名字，保留兼容但不写进文档。
+        llm_model=env("MEDPAL_LLM_MODEL") or env("HUAWEI_MODEL_NAME"),
+        llm_base_url=env("MEDPAL_LLM_BASE_URL") or env("HUAWEI_MODEL_ENDPOINT"),
+        llm_api_key=env("MEDPAL_LLM_API_KEY") or env("HUAWEI_MODEL_API_KEY"),
         max_hops=int(env("MEDPAL_MAX_HOPS", "2")),
         top_k=int(env("MEDPAL_TOP_K", "8")),
         lexicon_path=env("MEDPAL_LEXICON"),

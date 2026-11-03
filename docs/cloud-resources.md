@@ -1,7 +1,7 @@
 # 云资源申请与就绪表（C0 · 11/02 发出）
 
 > 这是关键路径的第一环：**C0 不发出，B6 GaussDB 就开不了工，整条链往后滑**。
-> 每拿到一项就把「工单号 / 状态」填上，11/08 前至少 OBS + GaussDB + ModelArts 三项为「已开通」。
+> 每拿到一项就把「工单号 / 状态」填上，11/08 前至少 OBS + RDS + ModelArts 三项为「已开通」（**11/03 已完成 OBS 与 RDS，见 §4 实测记录**）。
 
 ## 0. 申请前先确认（缺一项会卡住审批）
 
@@ -17,9 +17,9 @@
 
 | # | 资源 | 用途 | 最低规格 | 申请入口 | 工单号 | 状态 | 负责人 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | **OBS 桶** | 存原件 + trace 报告（`obs://` 路径回写库） | 标准存储，单 AZ，1 GB 足够 | 对象存储服务 OBS → 创建桶 | | ☐ 未申请 | t1 |
-| 2 | **GaussDB** | 三元组 / 资产 / trace 元数据 | 集中式版 1 主 1 备，最小规格 | 云数据库 GaussDB → 购买实例 | | ☐ 未申请 | t1 |
-| 3 | **ModelArts Studio** | 大模型推理（结论叙述） | 按 token 计费，开通即用 | ModelArts Studio → 在线推理 → 获取 API Key | | ☐ 未申请 | t1 |
+| 1 | **OBS 桶** | 存原件 + trace 报告（`obs://` 路径回写库） | 标准存储，单 AZ，1 GB 足够 | 对象存储服务 OBS → 创建桶 | `obs://medpal-trace-cn4` | ✅ **已开通 11/03** | t1 |
+| 2 | **RDS for PostgreSQL** | 三元组 / 资产 / trace 元数据 | 单机 2C4G / 40 GB / 按需（¥0.46 每小时） | 云数据库 RDS → 购买实例 | `rds-61e6` / PG 18.6 | ✅ **已开通 11/03** | t1 |
+| 3 | **ModelArts Studio** | 大模型推理（结论叙述） | 按 token 计费，开通即用 | ModelArts Studio → 在线推理 → API Key | 华东-上海一（**华北四不支持**） | 🟡 开通中 11/03 | t1 |
 | 4 | **KooSearch** | 向量 / 语义检索（替代本地 BM25） | 最小规格集群 | 云搜索服务 KooSearch → 购买 | | ☐ 未申请 | t1 |
 | 5 | **计算与网关**（CCE + SWR + APIG） | 容器托管 + 镜像仓库 + 对外域名 | CCE 单节点（2C4G）+ SWR 免费额度 + APIG 共享版 | CCE / SWR / APIG 分别开通，同一工单跟进 | | ☐ 未申请 | t1 |
 
@@ -31,7 +31,7 @@
 | `HUAWEI_REGION` | 区域 | cn-north-4 |
 | `HUAWEI_PROJECT_ID` | 项目 ID | |
 | `HUAWEI_OBS_BUCKET` | 桶名 | |
-| `HUAWEI_GAUSSDB_DSN` | `host=... port=8000 dbname=... user=... password=...` | |
+| `MEDPAL_DB_DSN` | `postgresql://root:***@<地址>:5432/medpal`（通用名优先；旧名 `HUAWEI_GAUSSDB_DSN` 仍兼容） | |
 | `HUAWEI_MODEL_ENDPOINT` / `HUAWEI_MODEL_NAME` | 推理地址与模型名 | |
 | `HUAWEI_KOOSEARCH_ENDPOINT` | 搜索服务地址 | |
 
@@ -45,3 +45,80 @@
 | ModelArts 额度不够 | 演示用 `FakeLLM` + 预录一段真机调用视频 | 结论叙述变成离线文案 |
 
 > 三项**不可降级**：OBS、GaussDB、ModelArts 的真机调用记录（评分要「用了华为云」，不是「写了华为云」）。
+
+## 4. 实测记录（2026-11-03）
+
+证据原文存在 [docs/evidence/2026-11-03-cloud.md](evidence/2026-11-03-cloud.md)。
+
+### 4.1 OBS：能写能读能删
+
+```
+$ python scripts/check_obs.py
+put    [OK] _selftest/hello.txt (200)
+get    [OK] 内容一致
+delete [OK]
+OBS READY: obs://medpal-trace-cn4/_selftest/hello.txt @ cn-north-4
+```
+
+### 4.2 RDS：`scripts/check_pg.py` 九步全绿
+
+```
+$ python scripts/check_pg.py
+3) 连接      [OK] PostgreSQL 18.6 on x86_64-pc-linux-gnu
+4) 建表      [OK] 表：alias, asset, pending_diff, trace, triple, version
+5) 写资产    [OK] 覆盖后 title = PG 自检资产 v2
+6) 写三元组  [OK] triple_id = T-6496a4bd
+7) 版本快照  [OK] v-pgtest triple_count=1 hash=07ea7173fa357dec
+8) 读回      [OK] list_assets 命中，当前共 1 条
+9) 清理      [OK]
+PG READY: 123.60.223.151:5432/medpal
+```
+
+### 4.3 云上踩到的四个坑（本地都测不出来）
+
+| # | 现象 | 根因 | 正解 |
+| --- | --- | --- | --- |
+| 1 | 桶名带 `.`，SDK 连建连接都证书失败 | 桶名含点会让访问域名变成两级子域，泛域名证书只覆盖一级 | 桶名不带点：`medpal-trace-cn4` |
+| 2 | `get` 返回 200 但内容是空的 | `esdk-obs-python` 的 `getObject` 不传 `loadStreamInMemory=True` 时，`resp.body` 是 `buffer=None` 的 `ObjectStream`，`read` 属性也是 `None` | provider 加 `read_body()` 兜底并显式传 `loadStreamInMemory=True` |
+| 3 | 接上 RDS 立刻 `syntax error` | `INSERT OR REPLACE` 是 SQLite 私有语法，PG 不认 | 改成 `INSERT ... ON CONFLICT ... DO UPDATE`，两库通用 |
+| 4 | `permission denied for schema public` | PostgreSQL **15+** 起默认收回了 `PUBLIC` 对 `public` schema 的 `CREATE`；且默认库 `postgres` 的 owner 是 `rdsAdmin` 不是 `root` | 建一个属于 `root` 的库：`CREATE DATABASE medpal;`，之后代码自动建表，不需要任何授权语句 |
+
+### 4.4 新环境初始化只需一句 SQL
+
+```sql
+-- 在 DAS 的 SQL 窗口执行一次；root 是建库者，随后即拥有该库 public schema 的建表权
+CREATE DATABASE medpal;
+```
+
+然后：
+
+```bash
+export MEDPAL_DB_DSN="postgresql://root:***@<地址>:5432/medpal"
+export MEDPAL_DB_BACKEND=postgres
+python scripts/check_pg.py
+```
+
+### 4.5 公网访问的成本纪律
+
+- 只有本机验证才需要绑 EIP：`¥0.02（IP 保有费）+ ¥0.063（1 Mbit/s 带宽）= ¥0.083/小时`
+- **验完三件事一起做**：解绑 EIP → 在 EIP 控制台**释放**（只解绑照收钱）→ 实例「停止」（停机只收存储费）
+- 安全组只放自己的出口 IP：`<本机公网IP>/32`，不要 `0.0.0.0/0`
+### 4.6 区域拆分：模型必须放在华东-上海一
+
+华为云 ModelArts Studio（以及盘古）在 **华北-北京四没有**，只能在下面三个区开：
+
+- **华东-上海一** ← 选这个（离北京最近，延迟最低）
+- 西南-贵阳一
+- 中国-香港（要走跨境网络，别选）
+
+**这不影响整体架构**：模型是走 HTTPS 的公网 API 调用，不像 OBS / RDS 那样需要同 VPC 内网互通。
+所以最终形态是：
+
+| 资源 | 区域 | 访问方式 |
+| --- | --- | --- |
+| OBS + RDS | 华北-北京四 | 内网（部署后）/ 公网（本机调试，绑 EIP） |
+| ModelArts Studio | 华东-上海一 | 公网 HTTPS，Token 鉴权 |
+| 计算与网关（后续） | 华北-北京四 | 与 OBS / RDS 同区同 VPC |
+
+方案书里要把这句话写进去，不然评委看到“跨区”会怀疑内网不通 —— 主动解释比被问强。
+
