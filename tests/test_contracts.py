@@ -70,10 +70,12 @@ def test_frozen_v1_digest():
 
     path = (pathlib.Path(__file__).resolve().parents[1]
             / "packages/core/medpal_core/contracts/trace/schema.json")
-    raw = path.read_bytes()
-    assert len(raw) == 5934
+    # 按 LF 规范化后计算：.gitattributes 里 * text=auto eol=lf 会把 CRLF 吃掉，
+    # Windows 工作树字节数 != git blob 字节数，只有规范化值在两端一致。
+    raw = path.read_bytes().replace(b"\r\n", b"\n")
+    assert len(raw) == 5752
     assert hashlib.sha256(raw).hexdigest() == (
-        "d3d242b78f2e0476a9150f677012fb3dd57d5ee996ef1be97e01b544bb081a81"
+        "b778690b133ef5b1c25725a79988a2af2744b1b188298dbfde34b4ba8af4f53c"
     )
 
     schema = json.loads(raw.decode("utf-8"))
