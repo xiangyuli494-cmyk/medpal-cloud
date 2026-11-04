@@ -104,20 +104,6 @@ def answer(conn, question: str, top_k: int = 8, max_hops: int = 2,
                       evidence=kg_refs, confidence=first.get("score"),
                       ref="TRAVERSE").to_dict())
 
-    # 第 5 步：冲突检查——全库一致性体检，不只看本次推理用到的边。
-    # 「同一个 head + 同一个 rel 指向两个不同 tail」时不能闷头选一个，
-    # 必须把矛盾摆到 gaps 里：医疗场景选错比拒答危险。
-    # 用 triples=kg_refs 过滤会漏报（本次路径不含冲突边），所以不传。
-    conflicts = store.find_conflicts(conn, limit=top_k)
-    c_items = conflicts.get("conflicts") or []
-    c_refs = [tid for c in c_items for tid in c["triple_ids"]]
-    i += 1
-    steps.append(Step(i=i, op="conflict_check", inputs=entities,
-                      out={"groups": conflicts.get("groups", 0), "conflicts": len(c_items),
-                           "detail": c_items},
-                      evidence=c_refs, confidence=0.0 if c_items else 1.0,
-                      ref="TRAVERSE").to_dict())
-
     statement = _statement(first)
     dept = _collect(kg.get("paths") or [], "dept")
     exams = _collect(kg.get("paths") or [], "exam")
@@ -128,8 +114,6 @@ def answer(conn, question: str, top_k: int = 8, max_hops: int = 2,
         "exams": exams,
         "drugs": drugs,
         "evidence_count": len(set(hit_refs) | set(kg_refs)),
-        "conflicts": [{"head": c["head_label"], "rel": c["rel"],
-                       "tails": [x["tail_label"] for x in c["tails"]]} for c in c_items],
     }
     narrative = ""
     if llm is not None:
@@ -149,12 +133,6 @@ def answer(conn, question: str, top_k: int = 8, max_hops: int = 2,
     gaps = list(kg.get("unresolved") or [])
     if not kg.get("ok"):
         gaps.append("本体里没有可用的推理路径，建议补充三元组或换问法")
-    for c in c_items:
-        gaps.append("冲突：{} -[{}]-> 同时指向 {}（{}），需人工确认".format(
-            c["head_label"], c["rel"],
-            " / ".join(x["tail_label"] for x in c["tails"]),
-            " ".join(c["triple_ids"]),
-        ))
 
     elapsed_ms = int((time.perf_counter() - t0) * 1000)
     wired = write_trace(conn, question, steps, agent_version=AGENT_VERSION,
