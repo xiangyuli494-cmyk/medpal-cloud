@@ -55,14 +55,17 @@ fi
 
 # ---- 等 PG 就绪 ----
 echo -n "等 PG 就绪"
+ready=0
 for _ in $(seq 1 30); do
   if docker exec "$CONTAINER" pg_isready -U "$PG_USER" >/dev/null 2>&1; then
     echo " ok"
+    ready=1
     break
   fi
   echo -n "."
   sleep 1
-else
+done
+if [ "$ready" -ne 1 ]; then
   echo " 超时"
   echo "FAIL: PG 30 秒内没就绪" >&2
   exit 1

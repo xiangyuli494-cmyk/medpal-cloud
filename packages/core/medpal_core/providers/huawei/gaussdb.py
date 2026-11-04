@@ -30,8 +30,14 @@ def _driver():
 
 
 def _sql(sql: str) -> str:
-    """把 sqlite 风格的 ? 占位改成 psycopg 的 %s。"""
-    return sql.replace("?", "%s")
+    """把 sqlite 风格的 ? 占位改成 psycopg 的 %s。
+
+    SQLite 用 ? 占位，SQL 里任何 % 都是字面量（如 LIKE '%x%'）；
+    psycopg 用 %s 占位，字面 % 必须转义成 %%，否则报
+    ProgrammingError: only '%s', '%b', '%t' are allowed as placeholders。
+    先转义 % 再替换 ?——输入全是 SQLite 风格（不含 %s），顺序安全。
+    """
+    return sql.replace("%", "%%").replace("?", "%s")
 
 
 class _Cursor:

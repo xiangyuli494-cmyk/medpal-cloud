@@ -18,6 +18,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "packages" / "core"))
@@ -44,6 +45,19 @@ def _fail(step: str, detail: str) -> None:
 
 def _dsn() -> str:
     return os.environ.get("MEDPAL_DB_DSN") or os.environ.get("HUAWEI_GAUSSDB_DSN") or ""
+
+
+def _mask_dsn(dsn: str) -> str:
+    """掩码 DSN 里的密码，其余保留（urlsplit 重组，不做全局替换）。"""
+    parts = urlsplit(dsn)
+    host = parts.hostname or ""
+    if parts.port:
+        host = f"{host}:{parts.port}"
+    userinfo = ""
+    if parts.username:
+        userinfo = f"{parts.username}:***@" if parts.password else f"{parts.username}@"
+    netloc = f"{userinfo}{host}"
+    return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
 
 
 def _seed_triples(conn, card, version="v0.9"):
@@ -115,9 +129,7 @@ def main() -> int:
     # 1) 环境变量
     dsn = _dsn()
     if dsn:
-        masked = dsn.replace(dsn.split("://")[1].split("@")[0].split(":")[1], "***") \
-            if "://" in dsn and "@" in dsn else dsn
-        _ok(f"{n})", f"DSN={masked}")
+        _ok(f"{n})", f"DSN={_mask_dsn(dsn)}")
     else:
         _fail(f"{n})", "缺少 MEDPAL_DB_DSN 或 HUAWEI_GAUSSDB_DSN")
         return 1
@@ -136,7 +148,7 @@ def main() -> int:
     try:
         conn = gaussdb.connect(dsn)
         info = conn.execute("SELECT version()").fetchone()
-        _ok(f"{n})", info[0] if info else "connected")
+        _ok(f"{n})", info["version"] if info else "connected")
     except Exception as exc:
         _fail(f"{n})", str(exc))
         return 1
@@ -148,7 +160,7 @@ def main() -> int:
         rows = conn.execute(
             "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename"
         ).fetchall()
-        tables = [r[0] for r in rows]
+        tables = [r["tablename"] for r in rows]
         _ok(f"{n})", "表：{}".format(", ".join(tables)))
     except Exception as exc:
         _fail(f"{n})", str(exc))
@@ -165,7 +177,7 @@ def main() -> int:
         card2 = ingest_file(conn, str(SAMPLE), title="PG 自检资产 v2",
                             source_type="public_standard", ingested_by="check_pg",
                             lexicon=default_lexicon())
-        _ok(f"{n})", f"覆盖后 title = {card2['title']}, asset_id = {card2['asset_id']}")
+        _ok(f"{n})", f"覆盖后 asset_id = {card2['asset_id']}, blocks = {card2['blocks']}")
     except Exception as exc:
         _fail(f"{n})", str(exc))
         return 1
@@ -215,6 +227,11 @@ def main() -> int:
 
     # 9) 清理
     try:
+        host = (urlsplit(dsn).hostname or "").lower()
+        allow_remote = "--allow-remote-drop" in sys.argv
+        if host not in ("127.0.0.1", "localhost", "::1", "") and not allow_remote:
+            _fail(f"{n})", f"拒绝 DROP：host={host} 不是本地，加 --allow-remote-drop 强制")
+            return 1
         for t in ("trace", "triple", "version", "asset", "alias", "pending_diff"):
             conn.execute(f"DROP TABLE IF EXISTS {t}")
         conn.close()
