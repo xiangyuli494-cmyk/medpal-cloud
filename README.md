@@ -152,7 +152,7 @@ dept_acc=1.0  exam_recall=1.0  completeness=1.0  avg_steps=6.5  avg_ms=11.3  (n=
 
 仓库：<https://github.com/xiangyuli494-cmyk/medpal-trace>
 
-`main` 是保护分支：**改动一律走 PR，1 人 approve 才合并，只有队长点 merge**，直推和无评审合并都被 GitHub 挡掉。
+`main` 是保护分支：**改动一律走 PR，1 人 approve 才合并，只有队长点 merge**，直推和无评审合并都被 GitHub 挡掉。 合并统一跑 `bash scripts/merge_pr.sh <PR号>`：队长自己的 PR 要 2 个 approve，队员的 PR 要 1 个，缺一个就 exit 3（见 docs/06 §5.2）。
 
 已生效（实测直推被拒：`protected branch hook declined`）：PR 必须、approve=1、新提交作废旧 approve、4 个必绿检查（`test (3.11)` `test (3.12)` `meta` `size`）、必须 rebase 到最新 main、对话全解、禁强推、禁删分支、管理员同样受限（`enforce_admins`）。
 
