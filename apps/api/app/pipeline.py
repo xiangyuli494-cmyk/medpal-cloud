@@ -116,7 +116,7 @@ def answer(conn, question: str, top_k: int = 8, max_hops: int = 2,
                       out={"groups": conflicts.get("groups", 0), "conflicts": len(c_items),
                            "detail": c_items},
                       evidence=c_refs, confidence=0.0 if c_items else 1.0,
-                      ref="EVIDENCE").to_dict())
+                      ref="TRAVERSE").to_dict())
 
     statement = _statement(first)
     dept = _collect(kg.get("paths") or [], "dept")
