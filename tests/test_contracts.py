@@ -70,8 +70,9 @@ def test_frozen_v1_digest():
 
     path = (pathlib.Path(__file__).resolve().parents[1]
             / "packages/core/medpal_core/contracts/trace/schema.json")
-    # 按 LF 规范化后计算：.gitattributes 里 * text=auto eol=lf 会把 CRLF 吃掉，
-    # Windows 工作树字节数 != git blob 字节数，只有规范化值在两端一致。
+    # 按 LF 规范化后计算：.gitattributes 是 * text=auto eol=lf，全新克隆的工作树本来就是 LF；
+    # 只有历史 checkout 可能残留 CRLF（5934 字节），那时磁盘字节数 != git blob 字节数。
+    # 所以断言只看规范化值，不看磁盘字节。
     raw = path.read_bytes().replace(b"\r\n", b"\n")
     assert len(raw) == 5752
     assert hashlib.sha256(raw).hexdigest() == (
