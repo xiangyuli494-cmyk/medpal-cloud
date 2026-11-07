@@ -30,8 +30,10 @@ def _pick_anchor(anchors, term: str):
 
 
 def seed(sample: Path = SAMPLES / "peptic_ulcer_pathway.md", seed_file: Path = SEED,
-         version: str = "v1.0") -> dict:
-    conn = connect()
+         version: str = "v1.0", conn=None) -> dict:
+    owns_conn = conn is None
+    if owns_conn:
+        conn = connect()
     try:
         card = ingest_file(conn, sample, title="消化性溃疡临床路径（合成样本）",
                            source_type="public_standard", ingested_by="seed",
@@ -55,7 +57,8 @@ def seed(sample: Path = SAMPLES / "peptic_ulcer_pathway.md", seed_file: Path = S
                 "entities": card["entity_hint"], "triples_added": len(added),
                 "triples_dedup": len(dedup), "snapshot": snap}
     finally:
-        conn.close()
+        if owns_conn:
+            conn.close()
 
 
 def main(argv=None) -> int:
