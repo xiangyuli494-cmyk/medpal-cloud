@@ -92,7 +92,7 @@ def cloud():
     ready = cfg.readiness()
     missing = {
         "obs": [] if ready["obs"] else ["HUAWEI_AK", "HUAWEI_SK", "HUAWEI_OBS_BUCKET"],
-        "gaussdb": [] if ready["gaussdb"] else ["HUAWEI_GAUSSDB_DSN"],
+        "gaussdb": [] if ready["gaussdb"] else ["MEDPAL_DB_DSN", "HUAWEI_GAUSSDB_DSN"],
         "modelarts": [] if ready["modelarts"] else ["HUAWEI_MODEL_ENDPOINT", "HUAWEI_MODEL_NAME"],
         "koosearch": [] if ready["koosearch"] else ["HUAWEI_KOOSEARCH_ENDPOINT"],
     }

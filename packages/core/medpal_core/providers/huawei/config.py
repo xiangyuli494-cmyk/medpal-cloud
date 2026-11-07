@@ -40,7 +40,7 @@ def load_config() -> HuaweiConfig:
         region=_env("HUAWEI_REGION", "cn-north-4"),
         project_id=_env("HUAWEI_PROJECT_ID"),
         obs_bucket=_env("HUAWEI_OBS_BUCKET"),
-        gaussdb_dsn=_env("HUAWEI_GAUSSDB_DSN"),
+        gaussdb_dsn=_env("MEDPAL_DB_DSN") or _env("HUAWEI_GAUSSDB_DSN"),
         model_endpoint=_env("HUAWEI_MODEL_ENDPOINT"),
         model_name=_env("HUAWEI_MODEL_NAME"),
         koosearch_endpoint=_env("HUAWEI_KOOSEARCH_ENDPOINT"),

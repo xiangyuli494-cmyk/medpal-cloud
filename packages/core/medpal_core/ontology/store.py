@@ -212,27 +212,27 @@ def kg_query(conn, seeds, max_hops=2, rel_filter=None, limit=20):
         # 头部命中不了就试尾部，否则「消化内科」这类只出现在尾端的节点永远召不回。
         code = resolve_entity(conn, s) or s
         hit = conn.execute(
-            "SELECT head_id FROM triple WHERE status='active' "
+            "SELECT head_id AS node_id FROM triple WHERE status='active' "
             "AND (head_id=? OR head_label=?) LIMIT 1",
             (code, s),
         ).fetchone()
         if not hit:
             hit = conn.execute(
-                "SELECT tail_id FROM triple WHERE status='active' "
+                "SELECT tail_id AS node_id FROM triple WHERE status='active' "
                 "AND (tail_id=? OR tail_label=?) LIMIT 1",
                 (code, s),
             ).fetchone()
         if hit:
-            resolved.append(hit[0])
+            resolved.append(hit["node_id"])
         else:
             unresolved.append(s)
         # 一个种子可能同时压着别名节点和标准节点（如「胃镜」→ EX-GASTRO），把能命中的都放进去
         if code != s:
             extra = conn.execute(
-                "SELECT head_id FROM triple WHERE status='active' AND head_id=? LIMIT 1", (s,)
+                "SELECT head_id AS node_id FROM triple WHERE status='active' AND head_id=? LIMIT 1", (s,)
             ).fetchone()
-            if extra and extra[0] not in resolved:
-                resolved.append(extra[0])
+            if extra and extra["node_id"] not in resolved:
+                resolved.append(extra["node_id"])
 
     paths = []
     seen = set()
@@ -315,11 +315,10 @@ def align(conn, text):
     row = conn.execute("SELECT * FROM alias WHERE surface = ?", (t,)).fetchone()
     how = "exact"
     if not row:
-        row = conn.execute(
-            "SELECT * FROM alias WHERE ? LIKE '%' || surface || '%' "
-            "ORDER BY LENGTH(surface) DESC LIMIT 1",
-            (t,),
-        ).fetchone()
+        # alias 表很小，全量拉到 Python 侧做包含匹配，
+        # 避免 SQL 里拼 '%' 在 psycopg 占位符转换下炸（ProgrammingError）。
+        rows = conn.execute("SELECT * FROM alias ORDER BY LENGTH(surface) DESC").fetchall()
+        row = next((r for r in rows if r["surface"] and r["surface"] in t), None)
         how = "contains"
     if not row:
         return {
