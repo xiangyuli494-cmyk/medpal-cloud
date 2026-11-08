@@ -79,3 +79,42 @@ def test_cloud_endpoint_lists_missing_env(seeded):
     assert "MEDPAL_DB_DSN" in body["missing"]["gaussdb"]
     assert "HUAWEI_GAUSSDB_DSN" in body["missing"]["gaussdb"]
     assert body["storage_backend"] == "sqlite"
+
+def test_cloud_endpoint_missing_names_medpal_llm(seeded):
+    """缺模型时要点名 MEDPAL_LLM_* —— 文档让人填这个名，报错就必须报这个名。"""
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    body = TestClient(app).get("/v1/cloud").json()
+    assert body["ready"]["modelarts"] is False
+    assert "MEDPAL_LLM_BASE_URL" in body["missing"]["modelarts"]
+    assert "MEDPAL_LLM_MODEL" in body["missing"]["modelarts"]
+
+
+def test_cloud_endpoint_sees_maas_env(seeded, monkeypatch):
+    """回归：只填 MEDPAL_LLM_* 时 /v1/cloud 必须报 modelarts 就绪（曾假阴性）。"""
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    monkeypatch.setenv("MEDPAL_LLM_BASE_URL", "https://api.modelarts-maas.com/v1")
+    monkeypatch.setenv("MEDPAL_LLM_MODEL", "deepseek-v3")
+    body = TestClient(app).get("/v1/cloud").json()
+    assert body["ready"]["modelarts"] is True
+    assert "modelarts" not in body["missing"]
+
+
+def test_health_llm_ready_needs_base_url(seeded, monkeypatch):
+    """只说 provider=modelarts 但没填端点不算就绪 —— 不能对评委撒谎。"""
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    monkeypatch.setenv("MEDPAL_LLM", "modelarts")
+    monkeypatch.delenv("MEDPAL_LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("HUAWEI_MODEL_ENDPOINT", raising=False)
+    assert TestClient(app).get("/health").json()["llm_ready"] is False
+
+    monkeypatch.setenv("MEDPAL_LLM_BASE_URL", "https://api.modelarts-maas.com/v1")
+    assert TestClient(app).get("/health").json()["llm_ready"] is True

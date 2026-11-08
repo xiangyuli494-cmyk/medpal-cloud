@@ -79,7 +79,8 @@ def health(conn: Annotated[object, Depends(get_conn)]):
         "ontology_version": (cur or {}).get("version"),
         "assets": assets,
         "llm": cfg.llm_provider,
-        "llm_ready": cfg.llm_provider != "offline",
+        "llm_ready": cfg.llm_provider != "offline" and bool(cfg.llm_base_url),
+        "llm_model": cfg.llm_model or "",
         "storage": backend_name(conn),
         "time": time.strftime("%Y-%m-%dT%H:%M:%S"),
     }
@@ -93,7 +94,9 @@ def cloud():
     missing = {
         "obs": [] if ready["obs"] else ["HUAWEI_AK", "HUAWEI_SK", "HUAWEI_OBS_BUCKET"],
         "gaussdb": [] if ready["gaussdb"] else ["MEDPAL_DB_DSN", "HUAWEI_GAUSSDB_DSN"],
-        "modelarts": [] if ready["modelarts"] else ["HUAWEI_MODEL_ENDPOINT", "HUAWEI_MODEL_NAME"],
+        "modelarts": [] if ready["modelarts"] else [
+            "MEDPAL_LLM_BASE_URL", "MEDPAL_LLM_MODEL", "HUAWEI_MODEL_ENDPOINT", "HUAWEI_MODEL_NAME",
+        ],
         "koosearch": [] if ready["koosearch"] else ["HUAWEI_KOOSEARCH_ENDPOINT"],
     }
     return {"ok": True, "region": cfg.region, "ready": ready,

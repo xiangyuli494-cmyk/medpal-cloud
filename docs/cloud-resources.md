@@ -17,11 +17,11 @@
 
 | # | 资源 | 用途 | 最低规格 | 申请入口 | 工单号 | 状态 | 负责人 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | **OBS 桶** | 存原件 + trace 报告（`obs://` 路径回写库） | 标准存储，单 AZ，1 GB 足够 | 对象存储服务 OBS → 创建桶 | `obs://medpal-trace-cn4` | ✅ **已开通 11/03** | t1 |
-| 2 | **RDS for PostgreSQL** | 三元组 / 资产 / trace 元数据 | 单机 2C4G / 40 GB / 按需（¥0.46 每小时） | 云数据库 RDS → 购买实例 | `rds-61e6` / PG 18.6 | ✅ **已开通 11/03** | t1 |
-| 3 | **ModelArts Studio** | 大模型推理（结论叙述） | 按 token 计费，开通即用 | ModelArts Studio → 在线推理 → 获取 API Key | | ☐ 未申请 | t1 |
-| 4 | **KooSearch** | 向量 / 语义检索（替代本地 BM25） | 最小规格集群 | 云搜索服务 KooSearch → 购买 | | ☐ 未申请 | t1 |
-| 5 | **计算与网关**（CCE + SWR + APIG） | 容器托管 + 镜像仓库 + 对外域名 | CCE 单节点（2C4G）+ SWR 免费额度 + APIG 共享版 | CCE / SWR / APIG 分别开通，同一工单跟进 | | ☐ 未申请 | t1 |
+| 1 | **OBS 桶** | 存原件 + trace 报告（`obs://` 路径回写库） | 标准存储，单 AZ，1 GB 足够 | 对象存储服务 OBS → 创建桶 | `obs://medpal-trace-cn4` | ✅ **已开通并实测**（put/get/delete 三步自检通过，2026-11-03；2026-11-08 复核 listBuckets 仍 200） | t1 |
+| 2 | **RDS for PostgreSQL** | 三元组 / 资产 / trace 元数据 | 单机 2C4G / 40 GB / 按需 | 云数据库 RDS → 购买实例 | `rds-61e6` / PG 18.6 | 🟡 **已开通并实测，实例已释放**（11/03 开通，`scripts/check_pg.py` 九步全绿；因按需计费 ¥0.46/h 于 11/06 删除，2026-11-08 API 复核 `total_count=0`；本地 `postgres:16` 容器保留同构环境） | t1 |
+| 3 | **ModelArts Studio** | 大模型推理（结论叙述） | 按 token 计费，开通即用 | ModelArts Studio → 在线推理 → 获取 API Key | 端点 `https://api.modelarts-maas.com/v1` | 🟡 **接口已验证，key 未申请**（2026-11-08 实测：该域名 DNS 可达，无 key → `400 ModelArts.81002`，假 key → `401 ModelArts.81003`，说明鉴权层正常、只差有效 API Key；申请卡在「账户欠费无法下单按需资源」，余额 0 且 `cn-east-3` 控制台显示「暂无可用模型」。**不影响交付**：`MEDPAL_LLM=offline` 的 FakeLLM 是默认，接入侧只需 3 个环境变量，见 `scripts/smoke_llm.py`） | t1 |
+| 4 | **KooSearch** | 向量 / 语义检索（替代本地 BM25） | 最小规格集群 | 云搜索服务 KooSearch → 购买 | | ❌ **未申请**（服务入口只到 L0 白名单；检索走本地 BM25，`providers/huawei/koosearch.py` 未配置时返回空数组不抛错） | t1 |
+| 5 | **计算与网关**（CCE + SWR + APIG） | 容器托管 + 镜像仓库 + 对外域名 | CCE 单节点（2C4G）+ SWR 免费额度 + APIG 共享版 | CCE / SWR / APIG 分别开通 | SWR 组织 `medpal` / 镜像 `swr.cn-north-4.myhuaweicloud.com/medpal/medpal-trace:0.1.0` | 🟡 **SWR 已完成**（镜像 50.3 MB 已推送，tag 0.1.0，2026-11-06）；**CCE 未开通**（clusters 空）；**APIG 未开通**（API 404） | t1 |
 
 ## 2. 拿到之后填这里（供 `/health` 与 `dev.huawei.sh` 读取）
 

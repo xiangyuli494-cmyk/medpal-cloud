@@ -21,6 +21,7 @@ class HuaweiConfig:
     gaussdb_dsn: str = ""
     model_endpoint: str = ""
     model_name: str = ""
+    model_api_key: str = ""
     koosearch_endpoint: str = ""
     extras: dict = field(default_factory=dict)
 
@@ -41,8 +42,11 @@ def load_config() -> HuaweiConfig:
         project_id=_env("HUAWEI_PROJECT_ID"),
         obs_bucket=_env("HUAWEI_OBS_BUCKET"),
         gaussdb_dsn=_env("MEDPAL_DB_DSN") or _env("HUAWEI_GAUSSDB_DSN"),
-        model_endpoint=_env("HUAWEI_MODEL_ENDPOINT"),
-        model_name=_env("HUAWEI_MODEL_NAME"),
+        # MEDPAL_LLM_* 是唯一入口，HUAWEI_MODEL_* 保留兼容；两处口径必须一致，
+        # 否则 /health 说就绪、/v1/cloud 说缺变量（2026-11-08 修过的假阴性）。
+        model_endpoint=_env("MEDPAL_LLM_BASE_URL") or _env("HUAWEI_MODEL_ENDPOINT"),
+        model_name=_env("MEDPAL_LLM_MODEL") or _env("HUAWEI_MODEL_NAME"),
+        model_api_key=_env("MEDPAL_LLM_API_KEY") or _env("HUAWEI_MODEL_API_KEY"),
         koosearch_endpoint=_env("HUAWEI_KOOSEARCH_ENDPOINT"),
     )
 
