@@ -24,7 +24,7 @@ def want_gaussdb() -> bool:
         return True
     if explicit and explicit != "auto":
         return False
-    return bool(os.environ.get("HUAWEI_GAUSSDB_DSN"))
+    return bool(os.environ.get("MEDPAL_DB_DSN") or os.environ.get("HUAWEI_GAUSSDB_DSN"))
 
 
 def open_conn():

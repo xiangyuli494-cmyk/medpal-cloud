@@ -76,5 +76,6 @@ def test_cloud_endpoint_lists_missing_env(seeded):
     body = TestClient(app).get("/v1/cloud").json()
     assert body["ok"] is True
     assert body["ready"]["gaussdb"] is False
+    assert "MEDPAL_DB_DSN" in body["missing"]["gaussdb"]
     assert "HUAWEI_GAUSSDB_DSN" in body["missing"]["gaussdb"]
     assert body["storage_backend"] == "sqlite"
