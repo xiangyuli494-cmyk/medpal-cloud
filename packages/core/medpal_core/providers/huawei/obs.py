@@ -86,15 +86,27 @@ class OBSStore:
         return "obs://" + self.cfg.obs_bucket + "/" + key
 
     def ensure_bucket(self) -> None:
-        """桶不存在就建；已存在视为成功（OBS / MinIO 的 409 文案不同，都放过）。"""
+        """桶不存在就建；已存在视为成功。
+
+        坑3：云端 OBS 建一个已属于自己的桶返回 409，但 reason 只有 "Conflict"，
+        真因在 errorCode="BucketAlreadyOwnedByYou"，只看 reason 会误判失败。
+        所以 409 后再 headBucket 一次，200 就认定桶已就绪。
+        """
         client = self._c()
         resp = client.createBucket(self.cfg.obs_bucket)
         status = getattr(resp, "status", 0)
-        reason = str(getattr(resp, "reason", "")).lower()
-        if status >= 300 and not any(k in reason for k in ("exist", "already", "owned")):
-            raise ProviderNotConfigured(
-                "OBS 建桶失败: {}".format(getattr(resp, "reason", resp))
+        if status < 300:
+            return
+        code = str(getattr(resp, "errorCode", "")).lower()
+        if getattr(client, "headBucket", None) and client.headBucket(self.cfg.obs_bucket).status == 200:
+            return
+        if any(k in code for k in ("exist", "already", "owned")):
+            return
+        raise ProviderNotConfigured(
+            "OBS 建桶失败: {} / {}".format(
+                getattr(resp, "reason", resp), getattr(resp, "errorCode", "")
             )
+        )
 
     def get(self, key: str) -> bytes:
         client = self._c()
