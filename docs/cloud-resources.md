@@ -78,7 +78,7 @@ $ python scripts/check_pg.py
 PG READY: 123.60.223.151:5432/medpal
 ```
 
-### 4.3 云上踩到的四个坑（本地都测不出来）
+### 4.3 云上踩到的五个坑（本地都测不出来）
 
 | # | 现象 | 根因 | 正解 |
 | --- | --- | --- | --- |
@@ -86,6 +86,7 @@ PG READY: 123.60.223.151:5432/medpal
 | 2 | `get` 返回 200 但内容是空的 | `esdk-obs-python` 的 `getObject` 不传 `loadStreamInMemory=True` 时，`resp.body` 是 `buffer=None` 的 `ObjectStream`，`read` 属性也是 `None` | provider 加 `read_body()` 兜底并显式传 `loadStreamInMemory=True` |
 | 3 | 接上 RDS 立刻 `syntax error` | `INSERT OR REPLACE` 是 SQLite 私有语法，PG 不认 | 改成 `INSERT ... ON CONFLICT ... DO UPDATE`，两库通用 |
 | 4 | `permission denied for schema public` | PostgreSQL **15+** 起默认收回了 `PUBLIC` 对 `public` schema 的 `CREATE`；且默认库 `postgres` 的 owner 是 `rdsAdmin` 不是 `root` | 建一个属于 `root` 的库：`CREATE DATABASE medpal;`，之后代码自动建表，不需要任何授权语句 |
+| 5 | 真 OBS 上 `check_obs.py` 第 3 步 `[FAIL] OBS 建桶失败: Conflict` | 桶已存在且属于自己的时候，`createBucket` 回 409，但 `reason` 只有 `"Conflict"`，真因在 `errorCode="BucketAlreadyOwnedByYou"`；MinIO 的文案是别的词，只看 `reason` 一定误判 | `ensure_bucket()` 改判：`status<300` 直接过；409 再 `headBucket` 一次，200 即视为就绪；仍不确定才看 `errorCode` 关键字 |
 
 ### 4.4 新环境初始化只需一句 SQL
 
