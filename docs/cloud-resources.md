@@ -51,10 +51,15 @@
 > 下面两段输出由**一次性自检脚本**产生，脚本不入库：
 > 正式自检脚本按看板由 t3 在 B1（`check_pg`）/ B2（`check_obs`）交付。
 > 这里保留的是「云上确实通了」的证据，不是代码资产。（2026-11-03）
+>
+> **2026-11-08 更新**：`scripts/check_obs.py` 已入库（B2），下面 §4.1 换成正式脚本在
+> **真 OBS**（不是 MinIO）上的七步原样输出；§4.3 补第 5 个坑。
 
 证据原文存在 [docs/evidence/2026-11-03-cloud.md](evidence/2026-11-03-cloud.md)。
 
 ### 4.1 OBS：能写能读能删
+
+一次性脚本（2026-11-03）：
 
 ```
 $ python scripts/check_obs.py
@@ -63,6 +68,22 @@ get    [OK] 内容一致
 delete [OK]
 OBS READY: obs://medpal-trace-cn4/_selftest/hello.txt @ cn-north-4
 ```
+
+正式脚本 `scripts/check_obs.py` 在真 OBS 上七步全绿（2026-11-08，`HUAWEI_OBS_ENDPOINT` 留空走 region 拼域名）：
+
+```
+$ python scripts/check_obs.py
+1)   [OK] endpoint=https://obs.cn-north-4.myhuaweicloud.com, bucket=medpal-trace-cn4, ak=HPUA***
+2)   [OK] esdk-obs-python ok
+3)   [OK] 桶 medpal-trace-cn4 就绪
+4)   [OK] 上传 obs://medpal-trace-cn4/_selftest/hello.txt
+5)   [OK] 下载内容一致 sha256=a7397d9c59a0a534… 长度=26
+6)   [OK] 桶内 ls 到 1 个对象，含 _selftest/hello.txt
+7)   [OK] 已删除测试对象
+OBS READY: obs://medpal-trace-cn4/_selftest/hello.txt @ https://obs.cn-north-4.myhuaweicloud.com
+```
+
+清理后复查桶内 `_selftest/` 前缀对象数 = 0，不留垃圾对象。
 
 ### 4.2 RDS：`scripts/check_pg.py` 九步全绿
 
