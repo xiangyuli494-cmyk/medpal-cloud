@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """check_obs.py — OBS/MinIO 对象存储自检（B2 交付物）。
 
-六步：环境变量 → SDK → 建桶 → 上传 → 下载比 sha256 → ls 确认 → 清理。
+七步：环境变量 → SDK → 建桶 → 上传 → 下载比 sha256 → ls 确认 → 清理。
 全绿打印 OBS READY 且退出码 0；任一步失败打印原因且退出码 1。
 
 本地用 MinIO 顶替 OBS：
