@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from datetime import datetime
 
@@ -47,6 +48,37 @@ def _ref_str(e):
             )
         return str(e)
     return str(e)
+
+
+def _repro_lines(tid, question):
+    """报告末尾附一段可直接复制的 curl：评委照抄就能在别的机器上拿到同构决策链。
+
+    为什么值得写：报告如果只是「一串漂亮结论」，谁都可能手工拼；能一条命令复现，
+    才证明这串结论来自这条代码路径。base 地址走 MEDPAL_BASE_URL，默认本机 8000，
+    指向云上时换成 APIG 域名即可，其余参数一律不写死。
+    """
+    base = os.environ.get("MEDPAL_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+    payload = json.dumps({"question": question, "top_k": 8, "max_hops": 2}, ensure_ascii=False)
+    # 单引号包住 JSON 最省事，但问句里带单引号会截断，按 POSIX 规则转一下。
+    payload = payload.replace("'", "'\\''")
+    fence = "`" * 3
+    return [
+        "## 复现命令",
+        "",
+        "照抄执行即可拿到结构相同的新决策链（`MEDPAL_BASE_URL` 默认 http://127.0.0.1:8000，"
+        "指向云上换成 APIG 域名；本报告 trace_id = " + tid + "）：",
+        "",
+        fence + "bash",
+        "# 1) 发起提问，返回体里取 trace_id",
+        'curl -s -X POST "' + base + '/v1/ask" \\',
+        '  -H \'Content-Type: application/json\' \\',
+        "  -d '" + payload + "'",
+        "",
+        "# 2) 回读决策链（把 TR-XXXX 换成上一步的 trace_id）",
+        'curl -s "' + base + '/v1/traces/TR-XXXX"',
+        fence,
+        "",
+    ]
 
 
 def write_trace(conn, question, steps, agent_version="v1.0", elapsed_ms=0, gaps=None):
@@ -131,6 +163,7 @@ def write_trace(conn, question, steps, agent_version="v1.0", elapsed_ms=0, gaps=
         lines.append("- " + e + (" ✅" if e not in unresolved else " ❌ 未找到"))
     if gaps:
         lines += ["", "## 缺口", ""] + ["- " + g for g in gaps]
+    lines += [""] + _repro_lines(tid, question)
     report.write_text("\n".join(lines), encoding="utf-8")
 
     return {
