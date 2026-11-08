@@ -48,9 +48,9 @@
 
 ## 4. 实测记录
 
-> 下面两段输出由**一次性自检脚本**产生，脚本不入库：
-> 正式自检脚本按看板由 t3 在 B1（`check_pg`）/ B2（`check_obs`）交付。
-> 这里保留的是「云上确实通了」的证据，不是代码资产。（2026-11-03）
+> 下面两段输出是「云上确实通了」的证据，不是代码资产。
+> `scripts/check_pg.py` 已随 B1 入库（#51），有真实 DSN 就能直接复跑；没有实例时用 `bash scripts/dev_pg.sh` 起本地 `postgres:16`。
+> `scripts/check_obs.py` 未入库（#44 已关闭），4.1 的输出来自 2026-11-03 的一次性脚本；OBS 本身已于 11-08 用 SDK `listBuckets`/`headBucket` 复核通过。
 
 证据原文存在 [docs/evidence/2026-11-03-cloud.md](evidence/2026-11-03-cloud.md)。
 
