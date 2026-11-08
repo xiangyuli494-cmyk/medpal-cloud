@@ -34,3 +34,6 @@ Thumbs.db
 # local env
 .env
 .env.local
+
+# 初赛提交材料：含真实手机号/邮箱/合照，只走赛事系统，不进公开仓库
+docs/submission/
