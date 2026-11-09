@@ -6,7 +6,7 @@
 <title>MedPal Trace · 可追溯决策链演示</title>
 <style>
   :root { --bg:#0b1020; --card:#141a2e; --line:#25304d; --fg:#e8ecf8; --dim:#8b96b5;
-          --ok:#3ddc97; --warn:#ffb454; --accent:#6aa6ff; }
+          --ok:#3ddc97; --warn:#ffb454; --bad:#ff6b6b; --accent:#6aa6ff; }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--fg);
          font:15px/1.65 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
@@ -18,6 +18,7 @@
   input[type=text] { flex:1; padding:12px 14px; border-radius:10px; border:1px solid var(--line);
                      background:var(--card); color:var(--fg); font-size:15px; outline:none; }
   input[type=text]:focus { border-color:var(--accent); }
+  input[type=text]:disabled { opacity:.6; }
   button { padding:12px 18px; border-radius:10px; border:0; background:var(--accent);
            color:#08101f; font-weight:600; cursor:pointer; }
   button:disabled { opacity:.5; cursor:default; }
@@ -46,12 +47,85 @@
   .err { color:var(--warn); }
   a { color:var(--accent); }
   footer { max-width:1040px; margin:0 auto; padding:0 24px 40px; color:var(--dim); font-size:12px; }
+
+  /* --- v2（A6）：版本徽标 / 两栏 / 完整率分档 / 证据展开 / 三态 --- */
+  .hdr { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; }
+  .badges { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .badge { padding:6px 12px; border:1px solid var(--line); border-radius:999px; background:transparent;
+           color:var(--dim); font-size:12px; font-weight:400; }
+  .badge:hover { color:var(--fg); border-color:var(--accent); }
+  #verList { margin-top:10px; background:var(--card); border:1px solid var(--line);
+             border-radius:10px; padding:10px 12px; }
+  #verList[hidden] { display:none; }
+  .ver-row { display:flex; gap:12px; padding:6px 0; border-bottom:1px dashed var(--line); font-size:13px; }
+  .ver-row:last-child { border-bottom:0; }
+  .ver-name { color:var(--fg); font-weight:600; }
+  .ver-meta { color:var(--dim); }
+  .grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px;
+          margin-top:0; align-items:start; }
+  .col { display:flex; flex-direction:column; min-width:0; }
+  @media (max-width:760px) { .grid { grid-template-columns:1fr; } }
+  .pct { font-size:32px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.2; }
+  .pct.ok { color:var(--ok); } .pct.warn { color:var(--warn); } .pct.bad { color:var(--bad); }
+  .bar > i.ok { background:var(--ok); } .bar > i.warn { background:var(--warn); }
+  .bar > i.bad { background:var(--bad); }
+  .card.bad { border-color:var(--bad); background:rgba(255,107,107,.06); }
+  .card.bad h2 { color:var(--bad); }
+  .ev-row { border:1px solid transparent; border-radius:10px; padding:6px 8px; }
+  .ev-row + .ev-row { margin-top:4px; }
+  .ev-row.hot { border-color:var(--accent); background:rgba(106,166,255,.08); }
+  .ev-row.ev-miss { border-color:var(--bad); background:rgba(255,107,107,.08); }
+  .ev-head { display:flex; align-items:center; gap:8px; }
+  .ev-flag { font-size:12px; color:var(--dim); white-space:nowrap; }
+  .ev-id { font-family:ui-monospace,Consolas,monospace; font-size:12px; color:var(--dim);
+           word-break:break-all; flex:1; }
+  .ev-btn { padding:4px 8px; font-size:12px; font-weight:400; background:transparent;
+            border:1px solid var(--line); color:var(--dim); border-radius:8px; }
+  .ev-btn:hover { color:var(--fg); border-color:var(--accent); }
+  .ev-body { padding:8px 0 2px; }
+  .ev-body[hidden] { display:none; }
+  .anchor-kind { font-size:11px; color:var(--dim); letter-spacing:1px; text-transform:uppercase; }
+  .anchor-text { font-size:13px; color:var(--fg); }
+  .anchor-miss { color:var(--bad); font-size:13px; }
+  ol.steps li.step { cursor:pointer; }
+  ol.steps li.step:hover { background:rgba(106,166,255,.05); }
+  ol.steps li.step.active { background:rgba(106,166,255,.1); border-radius:8px; }
+  .step-out { color:var(--fg); font-size:13px; }
+  .ref { display:inline-block; margin-top:4px; padding:1px 6px; border:1px solid var(--line);
+         border-radius:6px; font-size:11px; color:var(--dim);
+         font-family:ui-monospace,Consolas,monospace; }
+  .ev-chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+  .chip-ev { padding:2px 6px; border-radius:6px; background:#1d2740; color:var(--dim);
+             font-size:11px; font-family:ui-monospace,Consolas,monospace; }
+  .skel { height:14px; border-radius:6px; margin:10px 0;
+          background:linear-gradient(90deg,#1a2338,#243050,#1a2338); background-size:200% 100%;
+          animation:sk 1.2s linear infinite; }
+  .skel.short { width:55%; }
+  @keyframes sk { 0% { background-position:200% 0; } 100% { background-position:-200% 0; } }
+  .hint { color:var(--dim); font-size:13px; margin-top:12px; }
+  .refusal-box { border-left:3px solid var(--warn); background:rgba(139,150,181,.08);
+                 padding:12px 14px; border-radius:8px; }
+  .refusal-main { font-size:16px; margin:0 0 4px; }
+  .refusal-sub { color:var(--dim); font-size:13px; }
+  .gaps { margin:12px 0 0; padding-left:18px; color:var(--dim); font-size:13px; }
+  .unres { margin-top:10px; }
+  .unres summary { cursor:pointer; color:var(--dim); font-size:12px; }
+  .err-msg { color:var(--fg); font-size:15px; margin-bottom:12px; }
+  .retry { margin-bottom:12px; }
 </style>
 </head>
 <body>
 <header>
-  <h1>MedPal Trace · 可追溯决策链</h1>
-  <div class="sub">赛题1 演示页：问题 → 证据召回 → 本体多跳 → 结论 + 决策链。每一步都能点回原文锚点。</div>
+  <div class="hdr">
+    <div>
+      <h1>MedPal Trace · 可追溯决策链</h1>
+      <div class="sub">赛题1 演示页：问题 → 证据召回 → 本体多跳 → 结论 + 决策链。每条证据都能点回原文锚点。</div>
+    </div>
+    <div class="badges">
+      <button id="ver" class="badge">本体 —</button>
+    </div>
+  </div>
+  <div id="verList" hidden></div>
 </header>
 <main>
   <div class="row">
@@ -64,6 +138,10 @@
 <footer>数据为自拟合成样本，仅用于技术演示，不构成任何诊疗建议。</footer>
 
 <script>
+/* 演示页 v2（A6）：单文件、无构建、无外部依赖。
+ * 三件事：证据可展开、完整率分档标红、加载/拒答/错误三态。
+ * 数据来源见 docs/design/web-v2.md §5 字段映射表。
+ */
 var SAMPLES = [
   "上腹隐痛伴反酸，下一步做什么检查？",
   "消化性溃疡该挂哪个科？",
@@ -71,12 +149,440 @@ var SAMPLES = [
   "长期吃止痛药，胃黏膜要不要保护？"
 ];
 var $ = function (id) { return document.getElementById(id); };
+var state = "idle";
+var assetCache = {};
+var slowTimer = null;
 
 function el(tag, cls, text) {
   var n = document.createElement(tag);
   if (cls) n.className = cls;
   if (text !== undefined) n.textContent = text;
   return n;
+}
+function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+/* 决策链里的小标签：锚点只显示 # 后的部分（asset_id 全行共用，完整值放 title）；三元组 id 本身很短，原样显示 */
+function chipLabel(ref) {
+  var s = String(ref);
+  var i = s.indexOf("#");
+  return i >= 0 ? s.slice(i + 1) : s;
+}
+
+/* ---------- 取数 ---------- */
+function getJSON(url) {
+  return fetch(url, { headers: { Accept: "application/json" } }).then(function (r) {
+    return r.json().catch(function () { return {}; }).then(function (body) {
+      if (!r.ok) {
+        var detail = body && body.detail;
+        var reason = detail && detail.reason ? detail.reason : "";
+        var e = new Error(reason || ("HTTP " + r.status));
+        e.status = r.status;
+        e.reason = reason;
+        throw e;
+      }
+      return body;
+    });
+  });
+}
+function withTimeout(promise, ms) {
+  return new Promise(function (resolve, reject) {
+    var t = setTimeout(function () {
+      var e = new Error("超时");
+      e.timeout = true;
+      reject(e);
+    }, ms);
+    promise.then(
+      function (v) { clearTimeout(t); resolve(v); },
+      function (e) { clearTimeout(t); reject(e); }
+    );
+  });
+}
+/* A3 的 GET /v1/assets/{asset_id}：未合并时 404，这里按「接口未就绪」提示，不假装成功 */
+function getAsset(assetId) {
+  if (!assetCache[assetId]) {
+    assetCache[assetId] = getJSON("/v1/assets/" + encodeURIComponent(assetId))
+      .then(function (r) { return r.item || r; });
+  }
+  return assetCache[assetId];
+}
+
+/* ---------- 三态 ---------- */
+function showLoading() {
+  state = "loading";
+  $("go").disabled = true;
+  $("q").disabled = true;
+  var out = $("out");
+  clear(out);
+  var grid = el("div", "grid");
+  var left = el("div", "col");
+  var c1 = el("div", "card");
+  c1.appendChild(el("h2", null, "结论"));
+  c1.appendChild(el("div", "skel"));
+  c1.appendChild(el("div", "skel short"));
+  var s1 = el("div", "card");
+  s1.appendChild(el("h2", null, "决策链"));
+  for (var i = 0; i < 3; i++) s1.appendChild(el("div", "skel"));
+  left.appendChild(c1); left.appendChild(s1);
+  var right = el("div", "col");
+  var c2 = el("div", "card");
+  c2.appendChild(el("h2", null, "溯源完整率"));
+  c2.appendChild(el("div", "skel short"));
+  c2.appendChild(el("div", "skel"));
+  var s2 = el("div", "card");
+  s2.appendChild(el("h2", null, "证据清单"));
+  for (var j = 0; j < 4; j++) s2.appendChild(el("div", "skel"));
+  right.appendChild(c2); right.appendChild(s2);
+  grid.appendChild(left); grid.appendChild(right);
+  out.appendChild(grid);
+  var hint = el("div", "hint", "推理中…");
+  out.appendChild(hint);
+  if (slowTimer) clearTimeout(slowTimer);
+  slowTimer = setTimeout(function () {
+    if (state === "loading") hint.textContent = "还在查，最多等 20 秒";
+  }, 8000);
+}
+function stopLoading() {
+  if (slowTimer) { clearTimeout(slowTimer); slowTimer = null; }
+  $("go").disabled = false;
+  $("q").disabled = false;
+}
+function showError(err) {
+  state = "error";
+  stopLoading();
+  var out = $("out");
+  clear(out);
+  var card = el("div", "card bad");
+  card.appendChild(el("h2", null, "出错了"));
+  card.appendChild(el("div", "err-msg", err && err.timeout
+    ? "等了 20 秒还没回来，等一下再试。" : "没连上网，我再说一遍。"));
+  var retry = el("button", "retry", "重试");
+  retry.onclick = function () { ask(); };
+  card.appendChild(retry);
+  var det = el("details");
+  det.appendChild(el("summary", null, "详细错误（答辩用）"));
+  det.appendChild(el("div", "ev-id", String((err && (err.message || err)) || "unknown")));
+  card.appendChild(det);
+  out.appendChild(card);
+}
+
+/* ---------- 主渲染 ---------- */
+function collectEvidence(steps) {
+  var order = [];
+  var byId = {};
+  steps.forEach(function (s) {
+    (s.evidence || []).forEach(function (eid) {
+      if (!byId[eid]) { byId[eid] = { id: eid, steps: [] }; order.push(byId[eid]); }
+      if (byId[eid].steps.indexOf(s.i) < 0) byId[eid].steps.push(s.i);
+    });
+  });
+  return order;
+}
+function grade(pct) { return pct >= 80 ? "ok" : (pct >= 50 ? "warn" : "bad"); }
+
+function render(t, a) {
+  a = a || {};
+  var steps = t.steps || [];
+  var conclusion = t.conclusion || a.conclusion || {};
+  var evidence = collectEvidence(steps);
+  var unresolved = t.unresolved || a.unresolved || [];
+  var gaps = t.gaps || a.gaps || [];
+  var completeness =
+    typeof t.trace_completeness === "number" ? t.trace_completeness :
+    (typeof a.trace_completeness === "number" ? a.trace_completeness : 0);
+  var count = evidence.length || a.evidence_count || conclusion.evidence_count || 0;
+
+  stopLoading();
+  var out = $("out");
+  clear(out);
+
+  if (t.refusal === true || count === 0) {
+    state = "refusal";
+    renderRefusal(t, a, steps, gaps, unresolved, conclusion);
+    return;
+  }
+  state = "default";
+
+  var grid = el("div", "grid");
+  var left = el("div", "col");
+  var right = el("div", "col");
+
+  /* 左：结论 */
+  var cc = el("div", "card");
+  cc.appendChild(el("h2", null, "结论 / " + (t.trace_id || a.trace_id || "")));
+  cc.appendChild(el("p", "stmt", conclusion.statement || "（无）"));
+  var kv = el("div", "kv");
+  [["科室", conclusion.dept || "—"],
+   ["检查", (conclusion.exams || []).join("、") || "—"],
+   ["相关用药", (conclusion.drugs || []).join("、") || "—"],
+   ["本体", t.ontology_version || a.ontology_version || "—"],
+   ["耗时", (t.elapsed_ms || a.elapsed_ms || 0) + " ms"]].forEach(function (p) {
+    var s = el("span", null, p[0] + " ");
+    s.appendChild(el("b", null, p[1]));
+    kv.appendChild(s);
+  });
+  cc.appendChild(kv);
+  left.appendChild(cc);
+
+  /* 左：决策链（H5 点击高亮证据） */
+  var sc = el("div", "card");
+  sc.appendChild(el("h2", null, "决策链（" + steps.length + " 步）"));
+  var ol = el("ol", "steps");
+  steps.forEach(function (s) {
+    var li = el("li", "step");
+    li.appendChild(el("span", "i", String(s.i)));
+    li.appendChild(el("span", "op", s.op));
+    var mid = el("div");
+    mid.appendChild(el("div", "step-out", summarize(s.out)));
+    if (s.ref) mid.appendChild(el("span", "ref", s.ref));
+    if ((s.evidence || []).length) {
+      var chips = el("div", "ev-chips");
+      (s.evidence || []).forEach(function (eid) {
+        var c = el("span", "chip-ev", chipLabel(eid));
+        c.title = eid;
+        chips.appendChild(c);
+      });
+      mid.appendChild(chips);
+    }
+    li.appendChild(mid);
+    li.onclick = function () {
+      var on = li.classList.toggle("active");
+      highlight(on ? (s.evidence || []) : []);
+    };
+    ol.appendChild(li);
+  });
+  sc.appendChild(ol);
+  left.appendChild(sc);
+
+  /* 左：缺口（有结论但推理链自认的缺口，照实列出） */
+  if (gaps.length) {
+    var gc = el("div", "card");
+    gc.appendChild(el("h2", null, "缺口（诚实标注）"));
+    gaps.forEach(function (g) { gc.appendChild(el("div", "ev-id", String(g))); });
+    left.appendChild(gc);
+  }
+
+  /* 右：完整率（H3 / H4） */
+  var pct = Math.round(completeness * 100);
+  var rc = el("div", "card");
+  rc.appendChild(el("h2", null, "溯源完整率"));
+  rc.appendChild(el("div", "pct " + grade(pct), pct + "%"));
+  var bar = el("div", "bar");
+  var fill = el("i", grade(pct));
+  fill.style.width = pct + "%";
+  bar.appendChild(fill);
+  rc.appendChild(bar);
+  var meta = el("div", "kv");
+  meta.appendChild(el("span", null, "证据 " + count + " 条 · 未核对 " + unresolved.length + " 条"));
+  rc.appendChild(meta);
+  if (unresolved.length) {
+    var det = el("details", "unres");
+    det.appendChild(el("summary", null, "展开未核对 " + unresolved.length + " 条"));
+    unresolved.forEach(function (u) { det.appendChild(el("div", "ev-id", String(u))); });
+    rc.appendChild(det);
+  }
+  right.appendChild(rc);
+
+  /* 右：证据清单（H6 展开锚点原文；完整率 <0.5 整块标红） */
+  var ec = el("div", "card");
+  if (completeness < 0.5) ec.classList.add("bad");
+  ec.appendChild(el("h2", null, "证据清单"));
+  var depth = el("div", "hint", "点「展开」看原文锚点 · 点左侧决策链步可高亮对应证据");
+  depth.style.marginTop = "0";
+  ec.appendChild(depth);
+  evidence.forEach(function (e) {
+    var miss = unresolved.indexOf(e.id) >= 0;
+    var row = el("div", "ev-row" + (miss ? " ev-miss" : ""));
+    row.setAttribute("data-anchor", e.id);
+    var head = el("div", "ev-head");
+    head.appendChild(el("span", "ev-flag", miss ? "❌ 未核对" : "✅"));
+    head.appendChild(el("span", "ev-id", e.id));
+    var btn = el("button", "ev-btn", "展开 ▾");
+    head.appendChild(btn);
+    row.appendChild(head);
+    var body = el("div", "ev-body");
+    body.hidden = true;
+    row.appendChild(body);
+    btn.onclick = function () { toggleAnchor(row, e.id); };
+    ec.appendChild(row);
+  });
+  right.appendChild(ec);
+
+  grid.appendChild(left);
+  grid.appendChild(right);
+  out.appendChild(grid);
+}
+
+function summarize(out) {
+  if (out === undefined || out === null) return "—";
+  if (typeof out === "string") return out.length > 90 ? out.slice(0, 90) + "…" : out;
+  if (Array.isArray(out)) return out.join(" · ");
+  var keys = Object.keys(out);
+  var txt = keys.map(function (k) {
+    var v = out[k];
+    if (Array.isArray(v)) v = v.join("、");
+    else if (v && typeof v === "object") v = JSON.stringify(v);
+    return k + " " + v;
+  }).join(" · ");
+  return txt.length > 90 ? txt.slice(0, 90) + "…" : txt;
+}
+
+function highlight(ids) {
+  var rows = document.querySelectorAll("#out .ev-row");
+  Array.prototype.forEach.call(rows, function (r) {
+    var a = r.getAttribute("data-anchor");
+    if (ids.indexOf(a) >= 0) r.classList.add("hot");
+    else r.classList.remove("hot");
+  });
+}
+
+function toggleAnchor(row, anchorId) {
+  var body = row.querySelector(".ev-body");
+  var btn = row.querySelector(".ev-btn");
+  if (body.hidden === false) {
+    body.hidden = true;
+    btn.textContent = "展开 ▾";
+    return;
+  }
+  body.hidden = false;
+  btn.textContent = "收起 ▴";
+  if (body.getAttribute("data-state") === "ready" || body.getAttribute("data-state") === "missing") return;
+  var assetId = String(anchorId).split("#")[0];
+  clear(body);
+  body.appendChild(el("div", "hint", "读取锚点原文…"));
+  getAsset(assetId).then(function (item) {
+    var found = null;
+    (item.anchors || []).forEach(function (x) {
+      if (x.anchor_id === anchorId) found = x;
+    });
+    clear(body);
+    if (found) {
+      body.appendChild(el("div", "anchor-kind", found.kind || "anchor"));
+      body.appendChild(el("div", "anchor-text", found.text || ""));
+      body.setAttribute("data-state", "ready");
+      row.classList.remove("ev-miss");
+    } else {
+      body.appendChild(el("div", "anchor-miss", "锚点不存在（unresolved）"));
+      body.setAttribute("data-state", "missing");
+      row.classList.add("ev-miss");
+    }
+  }).catch(function (err) {
+    clear(body);
+    var msg = err && err.reason === "asset_not_found"
+      ? "资产不存在（asset_not_found）"
+      : (err && err.status === 404
+        ? "锚点接口未就绪（A3 PR #66 未合并）"
+        : "锚点原文读取失败");
+    body.appendChild(el("div", "anchor-miss", msg));
+    body.setAttribute("data-state", "missing");
+    row.classList.add("ev-miss");
+  });
+}
+
+/* ---------- 拒答态 ---------- */
+function renderRefusal(t, a, steps, gaps, unresolved, conclusion) {
+  var out = $("out");
+  var card = el("div", "card");
+  card.appendChild(el("h2", null, "结论 / " + (t.trace_id || a.trace_id || "")));
+  var box = el("div", "refusal-box");
+  box.appendChild(el("div", "refusal-main", "这个问题我不能回答。"));
+  box.appendChild(el("div", "refusal-sub", "建议：叫护士或换个问法，下面是缺口说明。"));
+  card.appendChild(box);
+
+  if (gaps.length) {
+    card.appendChild(el("h2", null, "缺口（gaps）"));
+    var ul = el("ul", "gaps");
+    gaps.forEach(function (g) { ul.appendChild(el("li", null, String(g))); });
+    card.appendChild(ul);
+  }
+  var ents = conclusion.unresolved || a.entities || [];
+  var un = unresolved.length ? unresolved : ents;
+  if (un && un.length) {
+    card.appendChild(el("h2", null, "没核对上的项（unresolved）"));
+    var ul2 = el("ul", "gaps");
+    un.forEach(function (u) { ul2.appendChild(el("li", null, String(u))); });
+    card.appendChild(ul2);
+  }
+  var kv = el("div", "kv");
+  kv.appendChild(el("span", null, "溯源完整率 — （无引用，不计分） · 证据 0 条"));
+  card.appendChild(kv);
+  out.appendChild(card);
+
+  if (steps.length) {
+    var det = el("details", "unres");
+    det.appendChild(el("summary", null, "查看这次推理的决策链（" + steps.length + " 步）"));
+    var ol = el("ol", "steps");
+    steps.forEach(function (s) {
+      var li = el("li");
+      li.appendChild(el("span", "i", String(s.i)));
+      li.appendChild(el("span", "op", s.op));
+      var mid = el("div");
+      mid.appendChild(el("div", "step-out", summarize(s.out)));
+      if (s.ref) mid.appendChild(el("span", "ref", s.ref));
+      li.appendChild(mid);
+      ol.appendChild(li);
+    });
+    det.appendChild(ol);
+    out.appendChild(det);
+  }
+}
+
+/* ---------- 提交 ---------- */
+function ask() {
+  var q = $("q").value.trim();
+  if (!q || state === "loading") return;
+  showLoading();
+  withTimeout(getJSON2("/v1/ask", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question: q, top_k: 8, max_hops: 2 })
+  }), 20000).then(function (d) {
+    var tid = d && d.trace_id;
+    if (!tid) { render(d || {}, d); return; }
+    return withTimeout(getJSON("/v1/traces/" + encodeURIComponent(tid)), 20000)
+      .then(function (t) { render(t, d); });
+  }).catch(showError);
+}
+function getJSON2(url, opts) {
+  return fetch(url, opts).then(function (r) {
+    return r.json().then(function (body) {
+      if (!r.ok) {
+        var e = new Error("HTTP " + r.status);
+        e.status = r.status;
+        throw e;
+      }
+      return body;
+    });
+  });
+}
+
+/* ---------- 头部：本体版本徽标（H1） ---------- */
+function initVersion() {
+  var badge = $("ver");
+  var box = $("verList");
+  getJSON("/health").then(function (h) {
+    badge.textContent = "本体 " + (h.ontology_version || "—");
+    if (h.storage) badge.textContent += " · " + h.storage;
+  }).catch(function () { badge.textContent = "本体 —"; });
+  badge.onclick = function () {
+    if (box.hidden === false) { box.hidden = true; return; }
+    box.hidden = false;
+    clear(box);
+    box.appendChild(el("div", "hint", "读取本体版本…"));
+    getJSON("/v1/ontology/versions").then(function (r) {
+      clear(box);
+      var items = (r.items || []).slice(0, 3);
+      if (!items.length) { box.appendChild(el("div", "hint", "还没有版本快照。")); return; }
+      items.forEach(function (v) {
+        var row = el("div", "ver-row");
+        row.appendChild(el("span", "ver-name", v.version + (v.is_current ? " · 当前" : "")));
+        row.appendChild(el("span", "ver-meta",
+          (v.triple_count || 0) + " 三元组 · " + (v.created_at || "")));
+        box.appendChild(row);
+      });
+    }).catch(function () {
+      clear(box);
+      box.appendChild(el("div", "hint", "版本接口未就绪（A3 PR #66 未合并）"));
+    });
+  };
 }
 
 function renderChips() {
@@ -88,92 +594,22 @@ function renderChips() {
   });
 }
 
-function render(data) {
-  var out = $("out");
-  out.innerHTML = "";
-  if (!data || data.ok === undefined) return;
-  var c = data.conclusion || {};
-
-  var card = el("div", "card");
-  card.appendChild(el("h2", null, "结论 / " + (data.trace_id || "")));
-  card.appendChild(el("p", "stmt", c.statement || "（无）"));
-  var kv = el("div", "kv");
-  kv.innerHTML = "<span>科室 <b>" + (c.dept || "—") + "</b></span>" +
-                 "<span>检查 <b>" + ((c.exams || []).join("、") || "—") + "</b></span>" +
-                 "<span>相关用药 <b>" + ((c.drugs || []).join("、") || "—") + "</b></span>" +
-                 "<span>本体 <b>" + (data.ontology_version || "—") + "</b></span>" +
-                 "<span>耗时 <b>" + (data.elapsed_ms || 0) + " ms</b></span>";
-  card.appendChild(kv);
-  var cited = data.evidence_count || 0;
-  var pct = Math.round((data.trace_completeness || 0) * 100);
-  var shown = cited ? pct + "%" : "拒答 · 不计分";
-  var label = el("div", "kv");
-  label.innerHTML = "<span>溯源完整率 <b>" + shown + "</b>（证据 " + cited + " 条）</span>";
-  card.appendChild(label);
-  var bar = el("div", "bar");
-  var fill = el("i");
-  fill.style.width = (cited ? pct : 0) + "%";
-  bar.appendChild(fill);
-  card.appendChild(bar);
-  out.appendChild(card);
-
-  var steps = el("div", "card");
-  steps.appendChild(el("h2", null, "决策链（可核对）"));
-  var ol = el("ol", "steps");
-  (data.steps || []).forEach(function (s) {
-    var li = el("li");
-    li.appendChild(el("span", "i", String(s.i)));
-    li.appendChild(el("span", "op", s.op));
-    var mid = el("div");
-    var outs = typeof s.out === "string" ? s.out : JSON.stringify(s.out);
-    mid.appendChild(el("div", null, outs.length > 160 ? outs.slice(0, 160) + "…" : outs));
-    var ev = el("div", "ev");
-    ev.innerHTML = (s.evidence || []).map(function (e) { return "<b>" + e + "</b>"; }).join("  ") || "—";
-    mid.appendChild(ev);
-    li.appendChild(mid);
-    ol.appendChild(li);
-  });
-  steps.appendChild(ol);
-  out.appendChild(steps);
-
-  if ((data.gaps || []).length) {
-    var g = el("div", "card");
-    g.appendChild(el("h2", null, "缺口（诚实标注）"));
-    data.gaps.forEach(function (x) { g.appendChild(el("div", "ev", x)); });
-    out.appendChild(g);
+/* ?trace=TR-... 直接渲染一条已存 trace（演示 / 复核用）；否则正常提问 */
+(function init() {
+  $("go").onclick = ask;
+  $("q").addEventListener("keydown", function (e) { if (e.key === "Enter") ask(); });
+  renderChips();
+  initVersion();
+  var m = location.search.match(/[?&]trace=([^&]+)/);
+  if (m) {
+    showLoading();
+    getJSON("/v1/traces/" + encodeURIComponent(decodeURIComponent(m[1])))
+      .then(function (t) { render(t, {}); })
+      .catch(showError);
+    return;
   }
-}
-
-function ask() {
-  var q = $("q").value.trim();
-  if (!q) return;
-  var btn = $("go");
-  btn.disabled = true;
-  $("out").innerHTML = '<div class="card"><h2>推理中</h2><div class="sub">调用 /v1/ask …</div></div>';
-  fetch("/v1/ask", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question: q, top_k: 8, max_hops: 2 })
-  }).then(function (r) { return r.json(); })
-    .then(function (data) {
-      return fetch("/v1/traces/" + data.trace_id).then(function (r) { return r.json(); })
-        .then(function (t) {
-          data.steps = t.steps;
-          render(data);
-        });
-    })
-    .catch(function (e) {
-      $("out").innerHTML = "";
-      var c = el("div", "card err", "请求失败：" + e.message);
-      $("out").appendChild(c);
-    })
-    .then(function () { btn.disabled = false; });
-}
-
-$("go").onclick = ask;
-$("q").addEventListener("keydown", function (e) { if (e.key === "Enter") ask(); });
-renderChips();
-ask();
+  ask();
+})();
 </script>
 </body>
 </html>
