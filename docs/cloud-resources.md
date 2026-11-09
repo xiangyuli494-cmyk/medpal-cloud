@@ -48,13 +48,18 @@
 
 ## 4. 实测记录
 
-> 下面两段输出是「云上确实通了」的证据，不是代码资产。
-> `scripts/check_pg.py` 已随 B1 入库（#51），有真实 DSN 就能直接复跑；没有实例时用 `bash scripts/dev_pg.sh` 起本地 `postgres:16`。
-> `scripts/check_obs.py` 未入库（#44 已关闭），4.1 的输出来自 2026-11-03 的一次性脚本；OBS 本身已于 11-08 用 SDK `listBuckets`/`headBucket` 复核通过。
+> 下面两段输出由**一次性自检脚本**产生，脚本不入库：
+> 正式自检脚本按看板由 t3 在 B1（`check_pg`）/ B2（`check_obs`）交付。
+> 这里保留的是「云上确实通了」的证据，不是代码资产。（2026-11-03）
+>
+> **2026-11-08 更新**：`scripts/check_obs.py` 已入库（B2），下面 §4.1 换成正式脚本在
+> **真 OBS**（不是 MinIO）上的七步原样输出；§4.3 补第 5 个坑。
 
 证据原文存在 [docs/evidence/2026-11-03-cloud.md](evidence/2026-11-03-cloud.md)。
 
 ### 4.1 OBS：能写能读能删
+
+一次性脚本（2026-11-03）：
 
 ```
 $ python scripts/check_obs.py
@@ -63,6 +68,22 @@ get    [OK] 内容一致
 delete [OK]
 OBS READY: obs://medpal-trace-cn4/_selftest/hello.txt @ cn-north-4
 ```
+
+正式脚本 `scripts/check_obs.py` 在真 OBS 上七步全绿（2026-11-08，`HUAWEI_OBS_ENDPOINT` 留空走 region 拼域名）：
+
+```
+$ python scripts/check_obs.py
+1)   [OK] endpoint=https://obs.cn-north-4.myhuaweicloud.com, bucket=medpal-trace-cn4, ak=HPUA***
+2)   [OK] esdk-obs-python ok
+3)   [OK] 桶 medpal-trace-cn4 就绪
+4)   [OK] 上传 obs://medpal-trace-cn4/_selftest/hello.txt
+5)   [OK] 下载内容一致 sha256=a7397d9c59a0a534… 长度=26
+6)   [OK] 桶内 ls 到 1 个对象，含 _selftest/hello.txt
+7)   [OK] 已删除测试对象
+OBS READY: obs://medpal-trace-cn4/_selftest/hello.txt @ https://obs.cn-north-4.myhuaweicloud.com
+```
+
+清理后复查桶内 `_selftest/` 前缀对象数 = 0，不留垃圾对象。
 
 ### 4.2 RDS：`scripts/check_pg.py` 九步全绿
 
@@ -78,7 +99,7 @@ $ python scripts/check_pg.py
 PG READY: 123.60.223.151:5432/medpal
 ```
 
-### 4.3 云上踩到的四个坑（本地都测不出来）
+### 4.3 云上踩到的五个坑（本地都测不出来）
 
 | # | 现象 | 根因 | 正解 |
 | --- | --- | --- | --- |
@@ -86,6 +107,7 @@ PG READY: 123.60.223.151:5432/medpal
 | 2 | `get` 返回 200 但内容是空的 | `esdk-obs-python` 的 `getObject` 不传 `loadStreamInMemory=True` 时，`resp.body` 是 `buffer=None` 的 `ObjectStream`，`read` 属性也是 `None` | provider 加 `read_body()` 兜底并显式传 `loadStreamInMemory=True` |
 | 3 | 接上 RDS 立刻 `syntax error` | `INSERT OR REPLACE` 是 SQLite 私有语法，PG 不认 | 改成 `INSERT ... ON CONFLICT ... DO UPDATE`，两库通用 |
 | 4 | `permission denied for schema public` | PostgreSQL **15+** 起默认收回了 `PUBLIC` 对 `public` schema 的 `CREATE`；且默认库 `postgres` 的 owner 是 `rdsAdmin` 不是 `root` | 建一个属于 `root` 的库：`CREATE DATABASE medpal;`，之后代码自动建表，不需要任何授权语句 |
+| 5 | 真 OBS 上 `check_obs.py` 第 3 步 `[FAIL] OBS 建桶失败: Conflict` | 桶已存在且属于自己的时候，`createBucket` 回 409，但 `reason` 只有 `"Conflict"`，真因在 `errorCode="BucketAlreadyOwnedByYou"`；MinIO 的文案是别的词，只看 `reason` 一定误判 | `ensure_bucket()` 改判：`status<300` 直接过；409 再 `headBucket` 一次，200 即视为就绪；仍不确定才看 `errorCode` 关键字 |
 
 ### 4.4 新环境初始化只需一句 SQL
 
@@ -107,30 +129,3 @@ python scripts/check_pg.py
 - 只有本机验证才需要绑 EIP：`¥0.02（IP 保有费）+ ¥0.063（1 Mbit/s 带宽）= ¥0.083/小时`
 - **验完三件事一起做**：解绑 EIP → 在 EIP 控制台**释放**（只解绑照收钱）→ 实例「停止」（停机只收存储费）
 - 安全组只放自己的出口 IP：`<本机公网IP>/32`，不要 `0.0.0.0/0`
-
-## 5. 五项尝试的终局（2026-11-08 封盘）
-
-| 资源 | 尝试到哪一步 | 终局 | 是否影响交付 |
-| --- | --- | --- | --- |
-| OBS | 建桶 → IAM 子用户 → SDK put/get/delete → 11/08 `listBuckets` / `headBucket` 复核 | ✅ **真跑通** | 不影响，T2 已在用 |
-| RDS（PG 18.6） | 开通 → 绑 EIP → 安全组放行 → `check_pg.py` 九步全绿 → 按需成本删除 | ✅ **开过、验过、已释放** | 不影响，本地 `postgres:16` 同构 |
-| ModelArts Studio | 六个入口逐个探到模型资产层 | ❌ **平台无可用对话模型** → 推理改用 DeepSeek 官方 API（已实测接通，指标不变） | 不影响，`MEDPAL_LLM=offline` 兜底 |
-| KooSearch | 服务入口停在 L0 白名单 | ❌ **放弃** | 不影响，BM25 兜底 |
-| CCE + SWR + APIG | SWR 镜像已推；CCE 只到购买页；APIG 返回 404 | 🟡 **1/3** | 不影响，本机 Docker 演示 |
-
-**一句话**：五项尝试全部走到底、每项都有可复核的证据与明确终局，没有一项是「没试」。真正开出来并在用的只有 OBS 与 SWR；RDS 验完即释放；ModelArts 与 KooSearch 卡在平台侧；CCE / APIG 是成本与时间取舍。
-
-## 6. 付费资源的开停纪律（2026-11-08 定）
-
-五项里 OBS 与 SWR 按量几乎为 0，可以长期留着；**RDS / CCE / APIG 这类按小时计费的不预开**：
-
-| 资源 | 现在 | 谁要 | 怎么开 | 关的条件 |
-| --- | --- | --- | --- | --- |
-| RDS for PostgreSQL | 未开（11/06 已释放） | 任何人要验 PG 方言层 | 找 **t1** 现开按需单机 2C4G（¥0.46/h），开完把 DSN 给人 | 验完当场删除实例（停机仍收存储费，不留停机实例） |
-| CCE 集群 | 未开 | 只有要录「容器编排」演示时 | 找 **t1** 开 **CCE Standard 单控制节点**（master 免费，只付节点 ≈¥0.4/h） | 录完立刻删集群与节点 |
-| APIG 共享版 | 未开 | 要对外域名时 | 找 **t1** 开共享版 | 演示结束即删分组 |
-| ModelArts Studio | 不用 | — | — | — |
-
-三条规矩：**① 不预先开；② 开之前说清用途和时长；③ 用完当场删，不停机、不欠费挂账。**
-本地替代品（`postgres:16` 容器 / `docker run` 单机 / BM25）覆盖日常开发，云上只在「录证据」的那十几分钟里存在。
-

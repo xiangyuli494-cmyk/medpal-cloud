@@ -18,6 +18,7 @@ class HuaweiConfig:
     region: str = "cn-north-4"
     project_id: str = ""
     obs_bucket: str = ""
+    obs_endpoint: str = ""
     gaussdb_dsn: str = ""
     model_endpoint: str = ""
     model_name: str = ""
@@ -41,6 +42,7 @@ def load_config() -> HuaweiConfig:
         region=_env("HUAWEI_REGION", "cn-north-4"),
         project_id=_env("HUAWEI_PROJECT_ID"),
         obs_bucket=_env("HUAWEI_OBS_BUCKET"),
+        obs_endpoint=_env("HUAWEI_OBS_ENDPOINT"),
         gaussdb_dsn=_env("MEDPAL_DB_DSN") or _env("HUAWEI_GAUSSDB_DSN"),
         # MEDPAL_LLM_* 是唯一入口，HUAWEI_MODEL_* 保留兼容；两处口径必须一致，
         # 否则 /health 说就绪、/v1/cloud 说缺变量（2026-11-08 修过的假阴性）。

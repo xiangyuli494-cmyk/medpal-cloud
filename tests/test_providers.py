@@ -28,6 +28,46 @@ def test_obs_without_sdk_raises_with_hint(monkeypatch):
         store._c()
 
 
+class _Resp:
+    def __init__(self, status, reason="", errorCode=""):
+        self.status = status
+        self.reason = reason
+        self.errorCode = errorCode
+
+
+class _FakeClient:
+    """只实现 ensure_bucket 走到的两个方法，用来复现云端 409。"""
+
+    def __init__(self, create_resp, head_status=200):
+        self._create = create_resp
+        self._head_status = head_status
+
+    def createBucket(self, bucket):  # noqa: N802
+        return self._create
+
+    def headBucket(self, bucket):  # noqa: N802
+        return _Resp(self._head_status, "OK")
+
+
+def test_ensure_bucket_409_already_owned_is_ready():
+    """云端建自己的桶返回 409 Conflict + BucketAlreadyOwnedByYou，不算失败。"""
+    from medpal_core.providers.huawei.obs import OBSStore
+
+    store = OBSStore(HuaweiConfig(ak="a", sk="b", obs_bucket="bucket"))
+    store._client = _FakeClient(_Resp(409, "Conflict", "BucketAlreadyOwnedByYou"))
+    store.ensure_bucket()  # 不抛就算过
+
+
+def test_ensure_bucket_real_error_raises():
+    from medpal_core.providers.huawei.config import ProviderNotConfigured
+    from medpal_core.providers.huawei.obs import OBSStore
+
+    store = OBSStore(HuaweiConfig(ak="a", sk="b", obs_bucket="bucket"))
+    store._client = _FakeClient(_Resp(403, "Forbidden", "AccessDenied"), head_status=404)
+    with pytest.raises(ProviderNotConfigured):
+        store.ensure_bucket()
+
+
 def test_default_llm_is_offline():
     llm = build_llm()
     assert isinstance(llm, FakeLLM)
