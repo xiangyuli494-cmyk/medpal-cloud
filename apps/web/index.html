@@ -611,7 +611,7 @@ var DEMO = (function () {
 })();
 var DEMO_REFUSAL_Q = "如何办理签证？";
 
-/* ?trace=TR-... 直接渲染一条已存 trace（演示 / 复核用）；否则按 ?demo= 走三态 */
+/* ?trace=TR-... 直接渲染一条已存 trace（演示 / 复核用）；否则正常提问 */
 (function init() {
   $("go").onclick = ask;
   $("q").addEventListener("keydown", function (e) { if (e.key === "Enter") ask(); });
