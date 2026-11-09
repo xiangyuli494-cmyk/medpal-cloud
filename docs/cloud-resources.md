@@ -51,10 +51,15 @@
 > 下面两段输出由**一次性自检脚本**产生，脚本不入库：
 > 正式自检脚本按看板由 t3 在 B1（`check_pg`）/ B2（`check_obs`）交付。
 > 这里保留的是「云上确实通了」的证据，不是代码资产。（2026-11-03）
+>
+> **2026-11-08 更新**：`scripts/check_obs.py` 已入库（B2），下面 §4.1 换成正式脚本在
+> **真 OBS**（不是 MinIO）上的七步原样输出；§4.3 补第 5 个坑。
 
 证据原文存在 [docs/evidence/2026-11-03-cloud.md](evidence/2026-11-03-cloud.md)。
 
 ### 4.1 OBS：能写能读能删
+
+一次性脚本（2026-11-03）：
 
 ```
 $ python scripts/check_obs.py
@@ -63,6 +68,22 @@ get    [OK] 内容一致
 delete [OK]
 OBS READY: obs://medpal-trace-cn4/_selftest/hello.txt @ cn-north-4
 ```
+
+正式脚本 `scripts/check_obs.py` 在真 OBS 上七步全绿（2026-11-08，`HUAWEI_OBS_ENDPOINT` 留空走 region 拼域名）：
+
+```
+$ python scripts/check_obs.py
+1)   [OK] endpoint=https://obs.cn-north-4.myhuaweicloud.com, bucket=medpal-trace-cn4, ak=HPUA***
+2)   [OK] esdk-obs-python ok
+3)   [OK] 桶 medpal-trace-cn4 就绪
+4)   [OK] 上传 obs://medpal-trace-cn4/_selftest/hello.txt
+5)   [OK] 下载内容一致 sha256=a7397d9c59a0a534… 长度=26
+6)   [OK] 桶内 ls 到 1 个对象，含 _selftest/hello.txt
+7)   [OK] 已删除测试对象
+OBS READY: obs://medpal-trace-cn4/_selftest/hello.txt @ https://obs.cn-north-4.myhuaweicloud.com
+```
+
+清理后复查桶内 `_selftest/` 前缀对象数 = 0，不留垃圾对象。
 
 ### 4.2 RDS：`scripts/check_pg.py` 九步全绿
 
@@ -78,7 +99,7 @@ $ python scripts/check_pg.py
 PG READY: 123.60.223.151:5432/medpal
 ```
 
-### 4.3 云上踩到的四个坑（本地都测不出来）
+### 4.3 云上踩到的五个坑（本地都测不出来）
 
 | # | 现象 | 根因 | 正解 |
 | --- | --- | --- | --- |
@@ -86,6 +107,7 @@ PG READY: 123.60.223.151:5432/medpal
 | 2 | `get` 返回 200 但内容是空的 | `esdk-obs-python` 的 `getObject` 不传 `loadStreamInMemory=True` 时，`resp.body` 是 `buffer=None` 的 `ObjectStream`，`read` 属性也是 `None` | provider 加 `read_body()` 兜底并显式传 `loadStreamInMemory=True` |
 | 3 | 接上 RDS 立刻 `syntax error` | `INSERT OR REPLACE` 是 SQLite 私有语法，PG 不认 | 改成 `INSERT ... ON CONFLICT ... DO UPDATE`，两库通用 |
 | 4 | `permission denied for schema public` | PostgreSQL **15+** 起默认收回了 `PUBLIC` 对 `public` schema 的 `CREATE`；且默认库 `postgres` 的 owner 是 `rdsAdmin` 不是 `root` | 建一个属于 `root` 的库：`CREATE DATABASE medpal;`，之后代码自动建表，不需要任何授权语句 |
+| 5 | 真 OBS 上 `check_obs.py` 第 3 步 `[FAIL] OBS 建桶失败: Conflict` | 桶已存在且属于自己的时候，`createBucket` 回 409，但 `reason` 只有 `"Conflict"`，真因在 `errorCode="BucketAlreadyOwnedByYou"`；MinIO 的文案是别的词，只看 `reason` 一定误判 | `ensure_bucket()` 改判：`status<300` 直接过；409 再 `headBucket` 一次，200 即视为就绪；仍不确定才看 `errorCode` 关键字 |
 
 ### 4.4 新环境初始化只需一句 SQL
 
