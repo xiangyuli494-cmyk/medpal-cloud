@@ -8,11 +8,10 @@ from __future__ import annotations
 
 import json
 import os
-import uuid
-from datetime import datetime
 
+from ..contracts.trace import new_trace_id
 from ..ontology.version import current_version
-from ..storage.db import CST, now, report_dir
+from ..storage.db import now, report_dir
 
 SCHEMA_ID = "medpal-trace/1"
 
@@ -82,7 +81,7 @@ def _repro_lines(tid, question):
 
 
 def write_trace(conn, question, steps, agent_version="v1.0", elapsed_ms=0, gaps=None):
-    tid = "TR-" + datetime.now(CST).strftime("%Y%m%d") + "-" + uuid.uuid4().hex[:4].upper()
+    tid = new_trace_id(conn)
     cur = current_version(conn)
     onto = cur["version"] if cur else "v0.9"
 

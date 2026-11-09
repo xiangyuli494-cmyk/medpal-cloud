@@ -74,3 +74,28 @@ def test_repro_payload_survives_quotes(conn, tmp_path):
     text = open(out["report_path"], encoding="utf-8").read()
     line = [ln for ln in text.splitlines() if ln.strip().startswith("-d ")][0]
     assert line.count("'") % 2 == 0, line
+
+
+def test_trace_id_matches_schema_format(conn):
+    """格式与 schema 正则锁死：改这一位就是改契约。"""
+    import re
+
+    out = write_trace(conn, "问", [])
+    assert re.match(r"^TR-[0-9]{8}-[0-9A-F]{4}$", out["trace_id"]), out["trace_id"]
+
+
+def test_trace_id_collision_is_retried(conn, monkeypatch):
+    """后四位只有 65536 种：撞号必须自动换一个，而不是把 IntegrityError 抛给调用方。"""
+    import types
+
+    from medpal_core.contracts import trace as ct
+
+    seq = iter(["AAAA", "AAAA", "AAAA", "BBBB"])
+    monkeypatch.setattr(ct.uuid, "uuid4", lambda: types.SimpleNamespace(hex=next(seq)))
+
+    first = write_trace(conn, "问", [])["trace_id"]
+    second = write_trace(conn, "问", [])["trace_id"]
+
+    assert first.endswith("-AAAA"), first
+    assert second.endswith("-BBBB"), second
+    assert first != second

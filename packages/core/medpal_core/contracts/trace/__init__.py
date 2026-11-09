@@ -19,9 +19,22 @@ def load_schema() -> dict:
     return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
 
 
-def new_trace_id() -> str:
-    """TR-YYYYMMDD-XXXX，后四位大写十六进制，与 schema 的正则一致。"""
-    return "TR-" + datetime.now(CST).strftime("%Y%m%d") + "-" + uuid.uuid4().hex[:4].upper()
+def new_trace_id(conn=None) -> str:
+    """TR-YYYYMMDD-XXXX，后四位大写十六进制，与 schema 的正则一致。
+
+    后四位只有 65536 种取值：同一天写满 300 条，撞号概率已过半（生日问题）。
+    CI 上实测真撞过（sqlite3.IntegrityError: UNIQUE constraint failed: trace.trace_id），
+    所以传了 conn 就先查表、撞了换一个 —— 格式不变，schema 正则不动。
+    """
+    day = datetime.now(CST).strftime("%Y%m%d")
+    for _ in range(16):
+        tid = "TR-" + day + "-" + uuid.uuid4().hex[:4].upper()
+        if conn is None:
+            return tid
+        row = conn.execute("SELECT 1 FROM trace WHERE trace_id = ?", (tid,)).fetchone()
+        if row is None:
+            return tid
+    raise RuntimeError("当天 trace_id 空间耗尽：" + day)
 
 
 def validate(trace: dict) -> list[str]:
