@@ -50,5 +50,18 @@ def get_conn():
         conn.close()
 
 
+_report_store = None
+
+
+def get_report_store():
+    """报告仓库单例：一个进程一个 OBS 客户端；测试用 dependency_overrides 换掉。"""
+    global _report_store
+    if _report_store is None:
+        from .report_store import ReportStore
+
+        _report_store = ReportStore()
+    return _report_store
+
+
 def get_settings():
     return settings()
