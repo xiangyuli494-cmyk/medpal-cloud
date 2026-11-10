@@ -45,3 +45,48 @@ jobs:
 
       - name: eval
         run: python eval/run_eval.py
+
+  # B4：无 secrets 时 huawei job 必须 skipped 而不是 failed。
+  # GitHub 的 job 级 if 不能直接用 secrets，先用一个前置 job 探测并输出标记。
+  check-secrets:
+    runs-on: ubuntu-latest
+    outputs:
+      has_huawei: ${{ steps.check.outputs.has_huawei }}
+    steps:
+      - id: check
+        env:
+          HUAWEI_AK: ${{ secrets.HUAWEI_AK }}
+        run: |
+          if [ -n "$HUAWEI_AK" ]; then
+            echo "has_huawei=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_huawei=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  huawei:
+    needs: check-secrets
+    if: needs.check-secrets.outputs.has_huawei == 'true'
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: apps/api:packages/core
+      MEDPAL_DB_DSN: ${{ secrets.MEDPAL_DB_DSN }}
+      HUAWEI_GAUSSDB_DSN: ${{ secrets.HUAWEI_GAUSSDB_DSN }}
+      HUAWEI_AK: ${{ secrets.HUAWEI_AK }}
+      HUAWEI_SK: ${{ secrets.HUAWEI_SK }}
+      HUAWEI_OBS_BUCKET: ${{ secrets.HUAWEI_OBS_BUCKET }}
+      HUAWEI_OBS_ENDPOINT: ${{ secrets.HUAWEI_OBS_ENDPOINT }}
+      HUAWEI_REGION: ${{ secrets.HUAWEI_REGION }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,huawei]"
+
+      - name: smoke huawei (gaussdb + obs)
+        run: python scripts/smoke_huawei.py
