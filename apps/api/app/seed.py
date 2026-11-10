@@ -15,7 +15,8 @@ from medpal_core.assets.card import ingest_file
 from medpal_core.assets.entity import default_lexicon
 from medpal_core.ontology import store
 from medpal_core.ontology import version as onto_version
-from medpal_core.storage import connect
+
+from .deps import open_conn
 
 REPO = Path(__file__).resolve().parents[3]
 SAMPLES = REPO / "data" / "samples"
@@ -31,7 +32,7 @@ def _pick_anchor(anchors, term: str):
 
 def seed(sample: Path = SAMPLES / "peptic_ulcer_pathway.md", seed_file: Path = SEED,
          version: str = "v1.0") -> dict:
-    conn = connect()
+    conn = open_conn()  # 走 deps 的后端分流：设了 DSN 就灌到 PG，否则本地 sqlite
     try:
         card = ingest_file(conn, sample, title="消化性溃疡临床路径（合成样本）",
                            source_type="public_standard", ingested_by="seed",
