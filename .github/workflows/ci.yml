@@ -55,12 +55,24 @@ jobs:
     steps:
       - id: check
         env:
+          MEDPAL_DB_DSN: ${{ secrets.MEDPAL_DB_DSN }}
+          HUAWEI_GAUSSDB_DSN: ${{ secrets.HUAWEI_GAUSSDB_DSN }}
           HUAWEI_AK: ${{ secrets.HUAWEI_AK }}
+          HUAWEI_SK: ${{ secrets.HUAWEI_SK }}
+          HUAWEI_OBS_BUCKET: ${{ secrets.HUAWEI_OBS_BUCKET }}
         run: |
-          if [ -n "$HUAWEI_AK" ]; then
-            echo "has_huawei=true" >> "$GITHUB_OUTPUT"
-          else
+          # huawei job 需要 DSN + AK + SK + BUCKET 四样，缺一样就不起 job（少一次白跑）
+          DSN="${MEDPAL_DB_DSN:-$HUAWEI_GAUSSDB_DSN}"
+          missing=""
+          [ -n "$DSN" ]               || missing="$missing MEDPAL_DB_DSN"
+          [ -n "$HUAWEI_AK" ]         || missing="$missing HUAWEI_AK"
+          [ -n "$HUAWEI_SK" ]         || missing="$missing HUAWEI_SK"
+          [ -n "$HUAWEI_OBS_BUCKET" ] || missing="$missing HUAWEI_OBS_BUCKET"
+          if [ -n "$missing" ]; then
+            echo "缺:$missing —— 跳过 huawei job"
             echo "has_huawei=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_huawei=true" >> "$GITHUB_OUTPUT"
           fi
 
   huawei:
