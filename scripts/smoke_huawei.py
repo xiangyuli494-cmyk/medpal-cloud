@@ -20,7 +20,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "packages", "core"))
 sys.path.insert(0, os.path.join(ROOT, "apps", "api"))
 
-KEY = "_selftest/smoke.txt"
+# 并发 run（pull_request 与 push 各一次）会同时写同一个 key，拼上 run id 隔离
+KEY = f"_selftest/smoke-{os.environ.get('GITHUB_RUN_ID', 'local')}.txt"
 PAYLOAD = b"medpal smoke huawei\n"
 
 
@@ -42,8 +43,10 @@ def _gaussdb(dsn: str) -> str:
         try:
             cnt = conn.execute("SELECT count(*) AS n FROM triple").fetchone()["n"]
             return f"{ver}  triple={cnt}"
-        except Exception:
-            # 表可能还没建，不算失败——smoke 只验连接与方言层
+        except Exception as exc:
+            # 只放过「表还没建」；权限、认证、方言错照抛，别被这行吞掉
+            if type(exc).__name__ != "UndefinedTable":
+                raise
             return f"{ver}  triple=(表未建)"
     finally:
         conn.close()
