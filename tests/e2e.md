@@ -255,7 +255,7 @@ curl -s $B/web/ | grep -c 'ev-row'
 curl -s $B/web/ | grep -o '?demo=[a-z]*' | sort -u
 ```
 
-期望输出（**A8 合并后**）：
+期望输出（实测，`main` @ `15b0ab8`）：
 
 ```text
 200
@@ -265,8 +265,7 @@ curl -s $B/web/ | grep -o '?demo=[a-z]*' | sort -u
 ?demo=refusal
 ```
 
-现状说明：前两条（`200` + `ev-row`）来自 A6，**main 上已成立**；第三条 `?demo=` 来自 A8（PR #73），合并前 `grep` 结果为空，属预期而非回归。
-判定线：`200` + 页面里有证据行骨架；三态**画面**（骨架屏 / 拒答卡 / 证据展开标红）需浏览器真实点击，属人工项，见 `docs/design/web-v2.md` §6。
+判定线：`200` + 页面里有证据行骨架 + 三条 `?demo=` 入口都在。三态**画面**（骨架屏 / 拒答卡 / 证据展开标红）需浏览器真实点击，属人工项，见 `docs/design/web-v2.md` §6。
 
 ---
 
@@ -369,8 +368,8 @@ python eval/run_eval.py --dataset v2 --retriever koosearch --llm modelarts --jso
 
 | 现象 | 原因 | 处理 |
 | --- | --- | --- |
-| `sqlite3.IntegrityError: UNIQUE constraint failed: trace.trace_id` | `trace_id` 后四位只有 65536 种，同一天累积几百条后必撞；修复在 PR #74 | 临时清库重跑：`rm -f data/medpal.db && rm -rf data/reports && python -m app.seed`；合并 #74 后本项消除 |
-| 同时打两个以上请求时随机 500，日志是 `SQLite objects created in a thread can only be used in that same thread` | FastAPI 把同步依赖与端点调度到不同线程，`storage/db.py` 的 `sqlite3.connect` 没开 `check_same_thread=False`（issue #69） | t1 修；串行验收不受影响，但**演示页会并发，修完才能安心演示** |
+| `sqlite3.IntegrityError: UNIQUE constraint failed: trace.trace_id` | `trace_id` 后四位只有 65536 种，同一天累积几百条后必撞 | **已修（#74 / `dbab261`）**：查表预检 + INSERT 层 SAVEPOINT 重试。在旧代码上遇到时清库重跑：`rm -f data/medpal.db && rm -rf data/reports && python -m app.seed` |
+| 同时打两个以上请求时随机 500，日志 `SQLite objects created in a thread can only be used in that same thread` | FastAPI 把同步依赖与端点调度到不同线程，`storage/db.py` 的 `sqlite3.connect` 没开 `check_same_thread=False` | **已修（#81 / `4bc1198`）**：`connect()` 已开 `check_same_thread=False`。实测并发打 `/health`+`/v1/ask`+`/v1/traces`+`/v1/assets` 共 48 请求，**48/48 全 200** |
 | `curl -d` 带中文返回 `There was an error parsing the body` | Windows Git Bash 的 argv 码页问题（见 §0） | 改用 `--data-binary @file` |
 | `/v1/assets` 全是 0 条 | 没跑 seed，或 `MEDPAL_DB` 指向了别的库 | 确认 `python -m app.seed` 与 `MEDPAL_DB` 一致性 |
 
@@ -388,7 +387,7 @@ E08 版本倒序          POST snapshot v1.1 后查列表                       
 E09 云就绪度          GET /v1/cloud                                        → ready 与 missing 自洽
 E10 trace 404         GET /v1/traces/TR-19700101-0000                      → 404 trace_not_found
 E11 契约校验          GET /v1/traces/{id} + validate()                     → steps=6, contract_errors=[]
-E12 演示页            GET /web/ (+ ?demo= 三入口)                        → 200 + ev-row=6；?demo= 三条在 A8 合并后出现
+E12 演示页            GET /web/ (+ ?demo= 三入口)                        → 200 + ev-row=6 + 三个 demo 参数（实测）
 E13 评测 n=60         python eval/run_eval.py                              → n=60 dept_acc>=0.85 zero_evidence=0
 E14 门禁（快）        bash scripts/verify.sh --fast                        → 6 项 ok + PASS
 E15 门禁（G2）        MIN_N=60 MIN_DEPT_ACC=0.85 bash scripts/verify.sh    → 7 项 ok + PASS
@@ -397,3 +396,16 @@ E17 消融四组          run_eval.py --retriever × --llm 四条               
 ```
 
 共 **17 条**，其中 E02/E03/E11/E13/E15 是门槛项（答辩前必须全绿）。
+
+## 4. 最近一次全量复验记录
+
+| 项 | 结果 | 环境 |
+| --- | --- | --- |
+| 本清单 E01–E17 | 全绿 | `main` @ `15b0ab8`，干净 worktree、**无任何本地补丁** |
+| 演示页 A6 验收（证据展开 / 假锚点 0% + 整块标红） | **16/16 断言通过** | headless Chrome + CDP 真点击 |
+| 演示页 A8 验收（三态一键入口 / 窄屏 375） | 同上，含在内 | 同上 |
+| 并发（`/health`+`/v1/ask`+`/v1/traces`+`/v1/assets` 各 12 条，20 线程） | **48/48 全 200** | 验证 #81 生效 |
+
+> 复验方法：`git worktree add` 一份干净 `main`、`python -m app.seed`、起 uvicorn，然后按本清单逐条跑；
+> 演示页部分用 CDP 驱动 headless Chrome 真实点击（假锚点 trace 用 `write_trace()` 把 evidence 写成不存在的锚点造出来）。
+
