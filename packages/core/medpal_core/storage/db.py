@@ -133,7 +133,10 @@ def _migrate(conn) -> None:
 def connect(target=None):
     path = Path(target) if target else db_file()
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
+    # check_same_thread=False：#69 —— FastAPI 的 yield 依赖与同步端点可能落在不同
+    # 线程池线程上，默认值会让并发请求随机抛 ProgrammingError（500）。一条请求一个连接，
+    # 不存在跨请求共享，关掉这个线程检查是安全的。
+    conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
     _migrate(conn)
