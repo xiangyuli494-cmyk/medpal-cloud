@@ -34,3 +34,7 @@ Thumbs.db
 # local env
 .env
 .env.local
+
+# 华为云真实凭据：只在本机，永不入库（模板见 .env.huawei.example）
+.env.huawei
+.env.huawei.local
