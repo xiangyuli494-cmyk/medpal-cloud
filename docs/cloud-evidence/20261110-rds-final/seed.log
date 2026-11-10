@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "asset_id": "AST-2026-49bcf1",
+  "anchors": 7,
+  "entities": [
+    "消化性溃疡",
+    "上腹隐痛",
+    "烧心",
+    "胃镜",
+    "幽门螺杆菌",
+    "消化内科",
+    "布洛芬",
+    "阿司匹林"
+  ],
+  "triples_added": 0,
+  "triples_dedup": 8,
+  "snapshot": {
+    "version": "v1.0",
+    "triple_count": 8,
+    "manifest_hash": "9f4aa32fe7772ca3",
+    "snapshot_path": "E:\\deepseek-data\\medpal-trace\\data\\ontology_v1.0.jsonl",
+    "created_at": "2026-11-10T17:43:06+08:00"
+  }
+}

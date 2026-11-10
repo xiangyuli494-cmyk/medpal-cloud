@@ -1,0 +1,12 @@
+== check_pg.py  (消化性溃疡, max_hops=2)
+1)   [OK] DSN=postgresql://root:***@119.3.211.255:5432/postgres
+2)   [OK] psycopg 3.3.4
+3)   [OK] PostgreSQL 18.6 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 10.3.1, 64-bit
+4)   [OK] schema=medpal 表：alias, asset, pending_diff, trace, triple, version
+5)   [OK] 覆盖后 asset_id = AST-2026-a9d332, blocks = 7
+6)   [OK] 8 条 added, 首条 triple_id = T-1236df9a
+7)   [OK] v-pgtest triple_count=8 hash=9f4aa32fe7772ca3
+8)   [OK] PG 路径数=8, SQLite 路径数=8, 结构一致
+9)   [OK] 保留测试表（--keep），供 api 步继续验证
+
+PG READY: 119.3.211.255:5432/postgres

@@ -1,0 +1,89 @@
+[
+  {
+    "id": "pg",
+    "title": "PG/GaussDB 方言层九步（B6）",
+    "ok": true,
+    "exit": 0,
+    "ms": 6039,
+    "log": "docs\\cloud-evidence\\20261110-rds-final\\pg.log"
+  },
+  {
+    "id": "seed",
+    "title": "灌演示数据（样本 + 8 条三元组）",
+    "ok": true,
+    "exit": 0,
+    "ms": 2258.5535049438477,
+    "log": "docs\\cloud-evidence\\20261110-rds-final\\seed.log"
+  },
+  {
+    "id": "api",
+    "title": "端到端 /health + cloud + ask + trace",
+    "ok": true,
+    "exit": 0,
+    "ms": 0,
+    "log": "docs\\cloud-evidence\\20261110-rds-final\\api.log",
+    "base_url": "http://127.0.0.1:8043",
+    "checks": [
+      {
+        "name": "服务起来",
+        "ok": true,
+        "detail": "",
+        "must": true
+      },
+      {
+        "name": "storage=gaussdb",
+        "ok": true,
+        "detail": "实际 storage=gaussdb",
+        "must": true
+      },
+      {
+        "name": "llm_ready",
+        "ok": false,
+        "detail": "llm=offline model=",
+        "must": false
+      },
+      {
+        "name": "cloud.ready.obs",
+        "ok": false,
+        "detail": "missing=[\"HUAWEI_AK\", \"HUAWEI_SK\", \"HUAWEI_OBS_BUCKET\"]",
+        "must": false
+      },
+      {
+        "name": "cloud.ready.gaussdb",
+        "ok": true,
+        "detail": "missing=[]",
+        "must": false
+      },
+      {
+        "name": "cloud.ready.modelarts",
+        "ok": false,
+        "detail": "missing=[\"MEDPAL_LLM_BASE_URL\", \"MEDPAL_LLM_MODEL\", \"HUAWEI_MODEL_ENDPOINT\", \"HUAWEI_MODEL_NAME\"]",
+        "must": false
+      },
+      {
+        "name": "cloud.ready.koosearch",
+        "ok": false,
+        "detail": "missing=[\"HUAWEI_KOOSEARCH_ENDPOINT\"]",
+        "must": false
+      },
+      {
+        "name": "/v1/ask 200",
+        "ok": true,
+        "detail": "",
+        "must": true
+      },
+      {
+        "name": "有结论",
+        "ok": true,
+        "detail": "",
+        "must": true
+      },
+      {
+        "name": "trace 可回读",
+        "ok": true,
+        "detail": "",
+        "must": true
+      }
+    ]
+  }
+]
