@@ -49,3 +49,28 @@ def test_no_evidence_counts_as_complete(conn):
     assert out["trace_completeness"] == 1.0
     assert out["evidence_count"] == 0
     assert out["refusal"] is True
+
+
+def test_report_includes_repro_commands(conn, tmp_path, monkeypatch):
+    """C6：报告末尾必须有可照抄的 curl，否则「可复现」只是一句形容词。"""
+    monkeypatch.setenv("MEDPAL_BASE_URL", "https://medpal.example.com")
+    card = _asset(conn, tmp_path)
+    ref = card["anchors"][1]["anchor_id"]
+    out = write_trace(conn, "上腹隐痛怎么办？", [{"i": 1, "op": "retrieve", "in": ["上腹隐痛怎么办？"],
+                                                "out": {}, "evidence": [ref]}])
+    text = open(out["report_path"], encoding="utf-8").read()
+    assert "## 复现命令" in text
+    assert "curl -s -X POST \"https://medpal.example.com/v1/ask\"" in text
+    assert "/v1/traces/TR-XXXX" in text
+    assert out["trace_id"] in text
+
+
+def test_repro_payload_survives_quotes(conn, tmp_path):
+    """问句里带单引号不能把 curl 的 -d 参数截断。"""
+    card = _asset(conn, tmp_path)
+    ref = card["anchors"][1]["anchor_id"]
+    q = "它说'没事'，可信吗？"
+    out = write_trace(conn, q, [{"i": 1, "op": "retrieve", "in": [q], "out": {}, "evidence": [ref]}])
+    text = open(out["report_path"], encoding="utf-8").read()
+    line = [ln for ln in text.splitlines() if ln.strip().startswith("-d ")][0]
+    assert line.count("'") % 2 == 0, line
