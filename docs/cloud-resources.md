@@ -128,4 +128,53 @@ python scripts/check_pg.py
 
 - 只有本机验证才需要绑 EIP：`¥0.02（IP 保有费）+ ¥0.063（1 Mbit/s 带宽）= ¥0.083/小时`
 - **验完三件事一起做**：解绑 EIP → 在 EIP 控制台**释放**（只解绑照收钱）→ 实例「停止」（停机只收存储费）
-- 安全组只放自己的出口 IP：`<本机公网IP>/32`，不要 `0.0.0.0/0`
+- 安全组只放自己的出口 IP：`<本机公网IP>/32`，不要 `0.0.0.0/0`（真要放开就只开 5432 一条，验完连同规则一起删）
+
+### 4.6 PostgreSQL 18 真机复验（2026-11-10，一次性实例）
+
+为了把 B6 从「本地 sqlite 假绿」推到真机，临时开了 1 台 RDS for PostgreSQL **18.6**（公网 :5432），全程约 6 分钟，跑完即删。证据在 `docs/cloud-evidence/20261110-rds-final/` 与 `docs/cloud-evidence/20261110-rds-load/`。
+
+```text
+== pg    九步全绿                                      PASS  6.0s
+4) schema=medpal 表：alias, asset, pending_diff, trace, triple, version
+5) 覆盖后 asset_id = AST-2026-…, blocks = 7
+6) 8 条 added
+7) v-pgtest triple_count=8 hash=…
+8) PG 路径数=8, SQLite 路径数=8, 结构一致
+9) 保留测试表(--keep)
+PG READY
+
+== seed  灌演示数据（样本 + 8 条三元组）                PASS  2.3s
+== api   /health storage=gaussdb；cloud.ready.gaussdb=true
+         /v1/ask 200 有结论；/v1/traces 可回读           PASS
+         statement: 上腹隐痛 -[提示]-> 消化性溃疡 -[确诊检查]-> 胃镜
+         dept=消化内科 exams=[胃镜] evidence_count=10 completeness=1.0
+
+== load  c=8 n=40                                      PASS  20.3s
+         rps=2.16  p50=3023ms  p95=4504ms
+```
+
+压测数字偏慢的原因不是数据库：每请求新建一条 PG 连接（公网 TLS 握手约 150ms），叠加 offline LLM 桩固定约 2.4s。换连接复用 + 真模型后 P95 会变，别把 4504ms 当基线写进答辩。
+
+### 4.7 这次又踩了两个坑（都在控制台层面）
+
+| # | 现象 | 根因 | 正解 |
+| --- | --- | --- | --- |
+| 6 | 实例公网 IP 的 80/443/22/5432 **全部 6s 超时**，而同一时刻 8.8.8.8:53、baidu:443 均 50ms 通；check-host.net 四节点全 timeout | 默认安全组入方向三条规则的源地址分别是 `default_securitygroup`（自引用）、`default_securitygroup`、`192.168.0.0/24`，**公网来源匹配不上任何一条**，等于没放行 | 入方向加一条：`允许 / IPv4 / 自定义TCP 5432 / 源地址类型改成「IP地址」/ 0.0.0.0/0`。「源地址类型」默认是「安全组」，不改就没有输入框可填 |
+| 7 | 换 DSN 仍报 `permission denied for schema public`，且 `select rolsuper` 显示 `root` 不是超管（只有 CREATEDB） | PG15+ 收回 PUBLIC 的建表权，public 的 owner 是 `pg_database_owner`，RDS 上 `root` 也拿不到 | ① 换库 `CREATE DATABASE medpal`（见 4.4）；② 不换库，建自己的 schema 并把 search_path 指过去：`CREATE SCHEMA IF NOT EXISTS medpal; ALTER ROLE root SET search_path TO medpal, public;` 本次用 ②，代码零改动 |
+
+顺带修掉一个真缺陷：`apps/api/app/seed.py` 原来 `from medpal_core.storage import connect`，**绕过 deps 的后端分流**，设了 DSN 仍灌进本地 sqlite（表现为 `triples_added: 0 / dedup: 8` 而 PG 里 asset=0）。改成 `from .deps import open_conn` 之后才真灌到 PG。
+
+### 4.8 一次性实例的标准动作（照抄即可）
+
+```bash
+# 1) 建实例后，控制台安全组加 0.0.0.0/0:5432（见坑 6）
+# 2) 九步自检：--reset 清上次残留，--keep 让 api 步还有数据可读
+MEDPAL_DB_DSN="postgresql://root:***@<公网IP>:5432/postgres" \
+  python scripts/cloud_accept.py --only pg,api --allow-remote-drop --reset --port 8043
+# 3) 压测（同一后端）
+MEDPAL_DB_DSN="..." python scripts/cloud_accept.py --only load --port 8044 \
+  --load-concurrency 8 --load-requests 40
+# 4) 立刻删实例 + 释放 EIP，回账单页确认归零
+```
+

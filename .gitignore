@@ -44,3 +44,6 @@ docs/submission/
 
 # 自动部署技能的工作目录（terraform state、密钥、报告）
 .auto-deploy/
+
+# 本地自测证据（只留真机证据）
+docs/cloud-evidence/_selftest/

@@ -116,6 +116,14 @@ def _run_sqlite_baseline():
         Path(tmp).unlink(missing_ok=True)
 
 
+_TABLES = ("trace", "triple", "version", "asset", "alias", "pending_diff")
+
+
+def _drop_tables(conn) -> None:
+    for t in _TABLES:
+        conn.execute(f"DROP TABLE IF EXISTS {t}")
+
+
 def main() -> int:
     from medpal_core.assets.card import ingest_file
     from medpal_core.assets.entity import default_lexicon
@@ -154,14 +162,22 @@ def main() -> int:
         return 1
     n += 1
 
-    # 4) 建表
+    # 4) 建表（--reset 先清空上次跑剩的表，否则重跑第 6 步会因去重返回 0 条）
     try:
+        if "--reset" in sys.argv:
+            host = (urlsplit(dsn).hostname or "").lower()
+            if host not in ("127.0.0.1", "localhost", "::1", "") and \
+                    "--allow-remote-drop" not in sys.argv:
+                _fail(f"{n})", f"拒绝 DROP 重建：host={host} 不是本地，加 --allow-remote-drop")
+                return 1
+            _drop_tables(conn)
         gaussdb.prepare(conn)
         rows = conn.execute(
-            "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename"
+            "SELECT tablename FROM pg_tables WHERE schemaname = current_schema() ORDER BY tablename"
         ).fetchall()
         tables = [r["tablename"] for r in rows]
-        _ok(f"{n})", "表：{}".format(", ".join(tables)))
+        _ok(f"{n})", "schema={} 表：{}".format(
+            conn.execute("SELECT current_schema() AS s").fetchone()["s"], ", ".join(tables)))
     except Exception as exc:
         _fail(f"{n})", str(exc))
         return 1
@@ -225,15 +241,19 @@ def main() -> int:
         return 1
     n += 1
 
-    # 9) 清理
+    # 9) 清理（--keep 时保留表，供随后 seed + api 步复用同一批数据）
     try:
+        if "--keep" in sys.argv:
+            conn.close()
+            _ok(f"{n})", "保留测试表（--keep），供 api 步继续验证")
+            print("\nPG READY: " + (dsn.split("@")[-1] if "@" in dsn else dsn))
+            return 0
         host = (urlsplit(dsn).hostname or "").lower()
         allow_remote = "--allow-remote-drop" in sys.argv
         if host not in ("127.0.0.1", "localhost", "::1", "") and not allow_remote:
             _fail(f"{n})", f"拒绝 DROP：host={host} 不是本地，加 --allow-remote-drop 强制")
             return 1
-        for t in ("trace", "triple", "version", "asset", "alias", "pending_diff"):
-            conn.execute(f"DROP TABLE IF EXISTS {t}")
+        _drop_tables(conn)
         conn.close()
         _ok(f"{n})", "已 DROP 全部测试表并关闭连接")
     except Exception as exc:
