@@ -74,3 +74,122 @@ def test_repro_payload_survives_quotes(conn, tmp_path):
     text = open(out["report_path"], encoding="utf-8").read()
     line = [ln for ln in text.splitlines() if ln.strip().startswith("-d ")][0]
     assert line.count("'") % 2 == 0, line
+
+
+def test_trace_id_matches_schema_format(conn):
+    """格式与 schema 正则锁死：改这一位就是改契约。"""
+    import re
+
+    out = write_trace(conn, "问", [])
+    assert re.match(r"^TR-[0-9]{8}-[0-9A-F]{4}$", out["trace_id"]), out["trace_id"]
+
+
+def test_trace_id_collision_is_retried(conn, monkeypatch):
+    """后四位只有 65536 种：撞号必须自动换一个，而不是把 IntegrityError 抛给调用方。"""
+    import types
+
+    from medpal_core.contracts import trace as ct
+
+    seq = iter(["AAAA", "AAAA", "AAAA", "BBBB"])
+    monkeypatch.setattr(ct.uuid, "uuid4", lambda: types.SimpleNamespace(hex=next(seq)))
+
+    first = write_trace(conn, "问", [])["trace_id"]
+    second = write_trace(conn, "问", [])["trace_id"]
+
+    assert first.endswith("-AAAA"), first
+    assert second.endswith("-BBBB"), second
+    assert first != second
+
+
+def test_insert_retries_on_unique_violation(conn, monkeypatch):
+    """#69 的兜底：查表放过去了、插入才撞（并发），必须换个 id 重插而不是抛给调用方。"""
+    from medpal_core.trace import writer as w
+
+    taken = "TR-20260101-AAAA"
+    conn.execute(
+        "INSERT INTO trace (trace_id,question,agent_version,ontology_version,steps_json,"
+        "gaps_json,elapsed_ms,created_at,sources_json,conclusion_json,completeness,refusal,"
+        "unresolved_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (taken, "占位", "v1.0", "v0.9", "[]", "[]", 0, "2026-01-01T00:00:00Z", "[]", "{}", 1.0, 1, "[]"),
+    )
+    conn.commit()
+
+    seq = iter([taken, "TR-20260101-BBBB"])
+    monkeypatch.setattr(w, "new_trace_id", lambda conn=None: next(seq))
+
+    out = w.write_trace(conn, "问", [])
+
+    assert out["trace_id"] == "TR-20260101-BBBB", out["trace_id"]
+    assert conn.execute("SELECT COUNT(*) FROM trace").fetchone()[0] == 2
+
+
+def test_unique_violation_classifier_ignores_other_integrity_errors():
+    """只看类名不够：sqlite3 里 NOT NULL / CHECK 违反抛的也是 IntegrityError。
+    判错的后果是真 bug 被重试 8 次后报「连续撞号」，把错误埋掉。"""
+    from medpal_core.trace import writer as w
+
+    class IntegrityError(Exception):  # 同名影子类，模拟 sqlite3.IntegrityError
+        pass
+
+    class UniqueViolation(Exception):  # 同名影子类，模拟 psycopg.errors.UniqueViolation
+        pass
+
+    assert w._is_unique_violation(IntegrityError("UNIQUE constraint failed: trace.trace_id"))
+    assert not w._is_unique_violation(IntegrityError("NOT NULL constraint failed: trace.question"))
+    assert not w._is_unique_violation(IntegrityError("CHECK constraint failed: refusal"))
+    assert w._is_unique_violation(UniqueViolation("duplicate key value violates unique constraint"))
+
+
+def test_insert_does_not_swallow_other_integrity_errors(conn, monkeypatch):
+    """非撞号的错误必须原样抛出，而且回滚到保存点后连接还能用。"""
+    import pytest
+
+    from medpal_core.trace import writer as w
+
+    taken = "TR-20260101-AAAA"
+    conn.execute(
+        "INSERT INTO trace (trace_id,question,agent_version,ontology_version,steps_json,"
+        "gaps_json,elapsed_ms,created_at,sources_json,conclusion_json,completeness,refusal,"
+        "unresolved_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (taken, "占位", "v1.0", "v0.9", "[]", "[]", 0, "2026-01-01T00:00:00Z", "[]", "{}", 1.0, 1, "[]"),
+    )
+    conn.commit()
+
+    monkeypatch.setattr(w, "new_trace_id", lambda conn=None: taken)
+    monkeypatch.setattr(w, "_is_unique_violation", lambda exc: False)
+
+    with pytest.raises(Exception) as ei:
+        w.write_trace(conn, "问", [])
+
+    assert "UNIQUE" in str(ei.value)
+    assert conn.execute("SELECT COUNT(*) FROM trace").fetchone()[0] == 1
+
+    # 回滚过保存点，同一个连接必须还能继续写
+    monkeypatch.undo()
+    out = w.write_trace(conn, "问2", [])
+    assert out["ok"] is True
+    assert conn.execute("SELECT COUNT(*) FROM trace").fetchone()[0] == 2
+
+
+def test_gives_up_loudly_when_id_space_exhausted(conn, monkeypatch):
+    """撞号重试有上限：一直撞就抛 RuntimeError，而且不留半条数据。"""
+    import pytest
+
+    from medpal_core.trace import writer as w
+
+    taken = "TR-20260101-AAAA"
+    conn.execute(
+        "INSERT INTO trace (trace_id,question,agent_version,ontology_version,steps_json,"
+        "gaps_json,elapsed_ms,created_at,sources_json,conclusion_json,completeness,refusal,"
+        "unresolved_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (taken, "占位", "v1.0", "v0.9", "[]", "[]", 0, "2026-01-01T00:00:00Z", "[]", "{}", 1.0, 1, "[]"),
+    )
+    conn.commit()
+
+    monkeypatch.setattr(w, "new_trace_id", lambda conn=None: taken)
+
+    with pytest.raises(RuntimeError) as ei:
+        w.write_trace(conn, "问", [])
+
+    assert "撞号" in str(ei.value)
+    assert conn.execute("SELECT COUNT(*) FROM trace").fetchone()[0] == 1
