@@ -1,0 +1,6 @@
+health = {"ok": true, "app_version": "0.1.0", "core_version": "0.1.0", "ontology_version": "v1.0", "assets": 3, "llm": "offline", "llm_ready": false, "llm_model": "", "storage": "gaussdb", "time": "2026-11-10T17:43:09"}
+cloud = {"ok": true, "region": "cn-north-4", "ready": {"obs": false, "gaussdb": true, "modelarts": false, "koosearch": false}, "missing": {"obs": ["HUAWEI_AK", "HUAWEI_SK", "HUAWEI_OBS_BUCKET"], "modelarts": ["MEDPAL_LLM_BASE_URL", "MEDPAL_LLM_MODEL", "HUAWEI_MODEL_ENDPOINT", "HUAWEI_MODEL_NAME"], "koosearch": ["HUAWEI_KOOSEARCH_ENDPOINT"]}, "missing_note": {"modelarts": "MEDPAL_LLM_BASE_URL + MEDPAL_LLM_MODEL，或 HUAWEI_MODEL_ENDPOINT + HUAWEI_MODEL_NAME（任一组）"}, "storage_backend": "gaussdb"}
+ask = {"trace_id": "TR-20261110-E9F5", "statement": "上腹隐痛 -[提示]-> 消化性溃疡 -[确诊检查]-> 胃镜", "dept": "消化内科", "exams": ["胃镜"], "drugs": ["布洛芬"], "evidence_count": 10, "trace_completeness": 1.0, "elapsed_ms": 5799}
+steps = 6
+
+[server]

@@ -1,0 +1,38 @@
+target = http://127.0.0.1:8044
+health = {"storage": "gaussdb", "llm": "offline", "assets": 3, "ontology_version": "v1.0"}
+{
+  "base_url": "http://127.0.0.1:8044",
+  "concurrency": 8,
+  "requests": 40,
+  "ok": 40,
+  "errors": 0,
+  "wall_s": 18.499,
+  "rps": 2.16,
+  "ask_ms": {
+    "p50": 3023.2,
+    "p95": 4504.33,
+    "p99": 4851.09,
+    "max": 4851.09,
+    "mean": 3106.9
+  },
+  "trace_ms": {
+    "p50": 324.15,
+    "p95": 345.28,
+    "p99": 755.22
+  },
+  "error_samples": [],
+  "health": {
+    "ok": true,
+    "app_version": "0.1.0",
+    "core_version": "0.1.0",
+    "ontology_version": "v1.0",
+    "assets": 3,
+    "llm": "offline",
+    "llm_ready": false,
+    "llm_model": "",
+    "storage": "gaussdb",
+    "time": "2026-11-10T17:43:34"
+  }
+}
+written = docs\cloud-evidence\20261110-rds-load\loadtest.json
+LOAD OK  rps=2.16  p50=3023ms  p95=4504ms
