@@ -15,6 +15,46 @@ from ..storage.db import now, report_dir
 
 SCHEMA_ID = "medpal-trace/1"
 
+_INSERT_SQL = (
+    "INSERT INTO trace "
+    "(trace_id,question,agent_version,ontology_version,steps_json,gaps_json,"
+    "elapsed_ms,created_at,sources_json,conclusion_json,completeness,refusal,"
+    "unresolved_json) "
+    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
+)
+
+
+def _is_unique_violation(exc) -> bool:
+    """撞号在两种后端里的类名：sqlite3.IntegrityError / psycopg.errors.UniqueViolation。
+    按类名判断，避免为了一个 except 去 import 可选依赖。"""
+    return type(exc).__name__ in ("IntegrityError", "UniqueViolation")
+
+
+def _insert_trace(conn, build_params, attempts=8):
+    """插一条 trace；id 撞了就换个 id 再插。
+
+    new_trace_id(conn) 的查表是 check-then-insert，两个并发请求可以同时通过检查再同时插入，
+    第二个照样撞 UNIQUE。查表只负责少撞，这一层负责绝不炸（#69 并发 500 的兜底）。
+    SAVEPOINT 包一层：Postgres 里唯一冲突会让整个事务进 aborted 状态，不回保存点后面全废；
+    SQLite 支持同一套语法，两边一条路径。
+    """
+    last = None
+    for _ in range(attempts):
+        tid = new_trace_id(conn)
+        conn.execute("SAVEPOINT trace_insert")
+        try:
+            conn.execute(_INSERT_SQL, build_params(tid))
+        except Exception as exc:
+            conn.execute("ROLLBACK TO SAVEPOINT trace_insert")
+            conn.execute("RELEASE SAVEPOINT trace_insert")
+            if not _is_unique_violation(exc):
+                raise
+            last = exc
+            continue
+        conn.execute("RELEASE SAVEPOINT trace_insert")
+        return tid
+    raise RuntimeError(f"trace_id 连续撞号 {attempts} 次，最后一次：{last}")
+
 
 
 def _evidence_exists(conn, ref):
@@ -81,7 +121,6 @@ def _repro_lines(tid, question):
 
 
 def write_trace(conn, question, steps, agent_version="v1.0", elapsed_ms=0, gaps=None):
-    tid = new_trace_id(conn)
     cur = current_version(conn)
     onto = cur["version"] if cur else "v0.9"
 
@@ -106,13 +145,8 @@ def write_trace(conn, question, steps, agent_version="v1.0", elapsed_ms=0, gaps=
 
     sources = derive_sources({"steps": steps}, conn)
 
-    conn.execute(
-        "INSERT INTO trace "
-        "(trace_id,question,agent_version,ontology_version,steps_json,gaps_json,"
-        "elapsed_ms,created_at,sources_json,conclusion_json,completeness,refusal,"
-        "unresolved_json) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (
+    def _params(tid):
+        return (
             tid,
             question,
             agent_version,
@@ -126,8 +160,9 @@ def write_trace(conn, question, steps, agent_version="v1.0", elapsed_ms=0, gaps=
             completeness,
             1 if refusal else 0,
             json.dumps(unresolved, ensure_ascii=False),
-        ),
-    )
+        )
+
+    tid = _insert_trace(conn, _params)
     conn.commit()
 
     report_dir().mkdir(parents=True, exist_ok=True)

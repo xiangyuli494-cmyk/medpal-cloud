@@ -99,3 +99,47 @@ def test_trace_id_collision_is_retried(conn, monkeypatch):
     assert first.endswith("-AAAA"), first
     assert second.endswith("-BBBB"), second
     assert first != second
+
+
+def test_insert_retries_on_unique_violation(conn, monkeypatch):
+    """#69 的兜底：查表放过去了、插入才撞（并发），必须换个 id 重插而不是抛给调用方。"""
+    from medpal_core.trace import writer as w
+
+    taken = "TR-20260101-AAAA"
+    conn.execute(
+        "INSERT INTO trace (trace_id,question,agent_version,ontology_version,steps_json,"
+        "gaps_json,elapsed_ms,created_at,sources_json,conclusion_json,completeness,refusal,"
+        "unresolved_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (taken, "占位", "v1.0", "v0.9", "[]", "[]", 0, "2026-01-01T00:00:00Z", "[]", "{}", 1.0, 1, "[]"),
+    )
+    conn.commit()
+
+    seq = iter([taken, "TR-20260101-BBBB"])
+    monkeypatch.setattr(w, "new_trace_id", lambda conn=None: next(seq))
+
+    out = w.write_trace(conn, "问", [])
+
+    assert out["trace_id"] == "TR-20260101-BBBB", out["trace_id"]
+    assert conn.execute("SELECT COUNT(*) FROM trace").fetchone()[0] == 2
+def test_gives_up_loudly_when_id_space_exhausted(conn, monkeypatch):
+    """撞号重试有上限：一直撞就抛 RuntimeError，而且不留半条数据。"""
+    import pytest
+
+    from medpal_core.trace import writer as w
+
+    taken = "TR-20260101-AAAA"
+    conn.execute(
+        "INSERT INTO trace (trace_id,question,agent_version,ontology_version,steps_json,"
+        "gaps_json,elapsed_ms,created_at,sources_json,conclusion_json,completeness,refusal,"
+        "unresolved_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (taken, "占位", "v1.0", "v0.9", "[]", "[]", 0, "2026-01-01T00:00:00Z", "[]", "{}", 1.0, 1, "[]"),
+    )
+    conn.commit()
+
+    monkeypatch.setattr(w, "new_trace_id", lambda conn=None: taken)
+
+    with pytest.raises(RuntimeError) as ei:
+        w.write_trace(conn, "问", [])
+
+    assert "撞号" in str(ei.value)
+    assert conn.execute("SELECT COUNT(*) FROM trace").fetchone()[0] == 1
