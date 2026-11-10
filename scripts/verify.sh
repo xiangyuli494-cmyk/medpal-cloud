@@ -77,6 +77,12 @@ run "单元测试 (pytest)"    "$PY" -m pytest -q
 run "灌演示数据 (seed)"    "$PY" -m app.seed
 run "端到端冒烟 (smoke)"   "$PY" scripts/smoke_verify.py
 
+# 模型连通性：没配 key 时打印 SKIP 不算失败（本地/CI 常态），配了就必须真通。
+# 想让没买模型也算失败，跑 VERIFY_STRICT_LLM=1 bash scripts/verify.sh。
+LLM_ARGS=""
+[ "${VERIFY_STRICT_LLM:-0}" = "1" ] && LLM_ARGS="--strict"
+run "模型连通性 (smoke_llm)" "$PY" scripts/smoke_llm.py $LLM_ARGS
+
 if [ "$MODE" != "fast" ]; then
   if "$PY" eval/run_eval.py --json "$TMP/eval.json" >"$TMP/eval.log" 2>&1; then
     if "$PY" - "$TMP/eval.json" "$MIN_N" "$MIN_DEPT_ACC" >"$TMP/gate.log" 2>&1 <<'PYEOF'
