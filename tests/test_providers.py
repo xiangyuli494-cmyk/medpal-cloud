@@ -95,7 +95,9 @@ def test_cloud_llm_accepts_maas_api_key(monkeypatch):
     assert llm.api_key == "sk-from-maas"
 
 
-def test_maas_falls_back_to_ak_when_api_key_absent(monkeypatch):
+def test_maas_refuses_to_use_ak_as_api_key(monkeypatch):
+    """AK 当 Bearer 只会换来 401 ModelArts.81003，把排查方向带偏 —— 干脆不走这条路。"""
+    from medpal_core.providers.huawei.config import ProviderNotConfigured
     from medpal_core.providers.huawei.modelarts import build_llm as build_maas
 
     monkeypatch.delenv("MEDPAL_LLM_API_KEY", raising=False)
@@ -103,7 +105,9 @@ def test_maas_falls_back_to_ak_when_api_key_absent(monkeypatch):
     monkeypatch.setenv("MEDPAL_LLM_BASE_URL", "https://api.modelarts-maas.com/v1")
     monkeypatch.setenv("MEDPAL_LLM_MODEL", "pangu-7b")
     monkeypatch.setenv("HUAWEI_AK", "ak-only")
-    assert build_maas().api_key == "ak-only"
+    with pytest.raises(ProviderNotConfigured) as ei:
+        build_maas()
+    assert "MEDPAL_LLM_API_KEY" in str(ei.value)
 
 
 def test_readiness_honors_medpal_llm_env(monkeypatch):

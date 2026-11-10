@@ -115,7 +115,8 @@ python scripts/smoke_llm.py --strict   # 答辩前用：没配就是 FAIL
 
 2026-11-08 实测口径见 [`docs/evidence/2026-11-08-maas.md`](docs/evidence/2026-11-08-maas.md)：
 端点 `https://api.modelarts-maas.com/v1` 可达，无 key → `400 ModelArts.81002`，假 key → `401 ModelArts.81003`；
-**代码侧已就绪，缺的只是一个有效 API Key**。
+代码侧已就绪，**卡在账户额度**（余额 0、控制台提示欠费，连「领取免费额度」都点不动）。演示默认用 FakeLLM，
+云端连通性由 `python scripts/smoke_llm.py --strict` 随时复验。
 
 ---
 

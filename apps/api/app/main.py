@@ -79,7 +79,8 @@ def health(conn: Annotated[object, Depends(get_conn)]):
         "ontology_version": (cur or {}).get("version"),
         "assets": assets,
         "llm": cfg.llm_provider,
-        "llm_ready": cfg.llm_provider != "offline" and bool(cfg.llm_base_url),
+        # 与 scripts/smoke_llm.py 同口径：provider 不是 offline、且有 base_url 和 model 才算就绪
+        "llm_ready": cfg.llm_provider != "offline" and bool(cfg.llm_base_url) and bool(cfg.llm_model),
         "llm_model": cfg.llm_model or "",
         "storage": backend_name(conn),
         "time": time.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -99,8 +100,15 @@ def cloud():
         ],
         "koosearch": [] if ready["koosearch"] else ["HUAWEI_KOOSEARCH_ENDPOINT"],
     }
+    # modelarts 那 4 个变量是两组「任选其一」，平铺列出来像是都要填，补一句说明
+    notes = {}
+    if not ready["modelarts"]:
+        notes["modelarts"] = (
+            "MEDPAL_LLM_BASE_URL + MEDPAL_LLM_MODEL，或 HUAWEI_MODEL_ENDPOINT + HUAWEI_MODEL_NAME（任一组）"
+        )
     return {"ok": True, "region": cfg.region, "ready": ready,
             "missing": {k: v for k, v in missing.items() if v},
+            "missing_note": notes,
             "storage_backend": "gaussdb" if want_gaussdb() else "sqlite"}
 
 

@@ -67,7 +67,8 @@ def main(argv=None) -> int:
         elif "400" in text:
             hint = "请求被拒：多半是 MEDPAL_LLM_MODEL 不在该端点的可用模型列表里"
         elif "Timeout" in text or "timed out" in text.lower():
-            hint = "超时：本机到 api.modelarts-maas.com 需要走出口（代理 127.0.0.1:7892）"
+            host = cfg.llm_base_url.split("//", 1)[-1].split("/", 1)[0]
+            hint = "超时：本机到 " + host + " 可能要走出口代理（HTTPS_PROXY / 本机 http.proxy 配置）"
         if hint:
             print("      " + hint)
         return 1
