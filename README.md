@@ -98,13 +98,25 @@ medpal-trace/
 export MEDPAL_LLM=openai
 export MEDPAL_LLM_BASE_URL=https://<MODELARTS_ENDPOINT>/v1
 export MEDPAL_LLM_MODEL=<MODEL_NAME>
-export MEDPAL_LLM_API_KEY=$HUAWEI_AK
+export MEDPAL_LLM_API_KEY=<MaaS 的 API Key>   # 注意：不是 AK/SK，MaaS 用独立 API Key
 export HUAWEI_OBS_BUCKET=<BUCKET>
 export HUAWEI_GAUSSDB_DSN=postgresql://<USER>:<PASS>@<HOST>:<PORT>/<DB>
 ~~~
 
 没配就自动回落本地实现，不会因为「没上云」而跑不起来 —— 也不会假装成功：
 `HuaweiConfig.readiness()` 会明确告诉你哪块云服务还缺哪个变量。
+
+模型到底通没通，一条命令问出来（没配 key 打 SKIP 不算失败，`--strict` 才算）：
+
+~~~bash
+python scripts/smoke_llm.py            # 没配 = SKIP，退出 0
+python scripts/smoke_llm.py --strict   # 答辩前用：没配就是 FAIL
+~~~
+
+2026-11-08 实测口径见 [`docs/evidence/2026-11-08-maas.md`](docs/evidence/2026-11-08-maas.md)：
+端点 `https://api.modelarts-maas.com/v1` 可达，无 key → `400 ModelArts.81002`，假 key → `401 ModelArts.81003`；
+代码侧已就绪，**卡在账户额度**（余额 0、控制台提示欠费，连「领取免费额度」都点不动）。演示默认用 FakeLLM，
+云端连通性由 `python scripts/smoke_llm.py --strict` 随时复验。
 
 ---
 
