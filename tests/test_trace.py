@@ -121,6 +121,56 @@ def test_insert_retries_on_unique_violation(conn, monkeypatch):
 
     assert out["trace_id"] == "TR-20260101-BBBB", out["trace_id"]
     assert conn.execute("SELECT COUNT(*) FROM trace").fetchone()[0] == 2
+
+
+def test_unique_violation_classifier_ignores_other_integrity_errors():
+    """只看类名不够：sqlite3 里 NOT NULL / CHECK 违反抛的也是 IntegrityError。
+    判错的后果是真 bug 被重试 8 次后报「连续撞号」，把错误埋掉。"""
+    from medpal_core.trace import writer as w
+
+    class IntegrityError(Exception):  # 同名影子类，模拟 sqlite3.IntegrityError
+        pass
+
+    class UniqueViolation(Exception):  # 同名影子类，模拟 psycopg.errors.UniqueViolation
+        pass
+
+    assert w._is_unique_violation(IntegrityError("UNIQUE constraint failed: trace.trace_id"))
+    assert not w._is_unique_violation(IntegrityError("NOT NULL constraint failed: trace.question"))
+    assert not w._is_unique_violation(IntegrityError("CHECK constraint failed: refusal"))
+    assert w._is_unique_violation(UniqueViolation("duplicate key value violates unique constraint"))
+
+
+def test_insert_does_not_swallow_other_integrity_errors(conn, monkeypatch):
+    """非撞号的错误必须原样抛出，而且回滚到保存点后连接还能用。"""
+    import pytest
+
+    from medpal_core.trace import writer as w
+
+    taken = "TR-20260101-AAAA"
+    conn.execute(
+        "INSERT INTO trace (trace_id,question,agent_version,ontology_version,steps_json,"
+        "gaps_json,elapsed_ms,created_at,sources_json,conclusion_json,completeness,refusal,"
+        "unresolved_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (taken, "占位", "v1.0", "v0.9", "[]", "[]", 0, "2026-01-01T00:00:00Z", "[]", "{}", 1.0, 1, "[]"),
+    )
+    conn.commit()
+
+    monkeypatch.setattr(w, "new_trace_id", lambda conn=None: taken)
+    monkeypatch.setattr(w, "_is_unique_violation", lambda exc: False)
+
+    with pytest.raises(Exception) as ei:
+        w.write_trace(conn, "问", [])
+
+    assert "UNIQUE" in str(ei.value)
+    assert conn.execute("SELECT COUNT(*) FROM trace").fetchone()[0] == 1
+
+    # 回滚过保存点，同一个连接必须还能继续写
+    monkeypatch.undo()
+    out = w.write_trace(conn, "问2", [])
+    assert out["ok"] is True
+    assert conn.execute("SELECT COUNT(*) FROM trace").fetchone()[0] == 2
+
+
 def test_gives_up_loudly_when_id_space_exhausted(conn, monkeypatch):
     """撞号重试有上限：一直撞就抛 RuntimeError，而且不留半条数据。"""
     import pytest

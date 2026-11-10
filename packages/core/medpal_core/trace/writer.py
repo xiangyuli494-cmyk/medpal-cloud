@@ -25,9 +25,16 @@ _INSERT_SQL = (
 
 
 def _is_unique_violation(exc) -> bool:
-    """撞号在两种后端里的类名：sqlite3.IntegrityError / psycopg.errors.UniqueViolation。
-    按类名判断，避免为了一个 except 去 import 可选依赖。"""
-    return type(exc).__name__ in ("IntegrityError", "UniqueViolation")
+    """是不是「主键撞了」，而不是别的完整性错误。
+
+    按类名判断，避免为了一个 except 去 import 可选依赖；但只看类名不够：
+    sqlite3 里 NOT NULL / CHECK 违反抛的**也是** IntegrityError，
+    一律当撞号重试会把真 bug 埋成「连续撞号」，所以 UNIQUE 还要看消息。
+    """
+    name = type(exc).__name__
+    if name == "UniqueViolation":  # psycopg.errors.UniqueViolation，只有唯一冲突会走这里
+        return True
+    return name == "IntegrityError" and "UNIQUE" in str(exc).upper()
 
 
 def _insert_trace(conn, build_params, attempts=8):
@@ -37,6 +44,12 @@ def _insert_trace(conn, build_params, attempts=8):
     第二个照样撞 UNIQUE。查表只负责少撞，这一层负责绝不炸（#69 并发 500 的兜底）。
     SAVEPOINT 包一层：Postgres 里唯一冲突会让整个事务进 aborted 状态，不回保存点后面全废；
     SQLite 支持同一套语法，两边一条路径。
+
+    注意两点：
+    - 这里的 ? 占位符靠 GaussConn（providers/huawei/gaussdb.py 的 _sql）转成 %s；
+      传裸 psycopg 连接进来会在占位符上直接炸。
+    - SAVEPOINT 名字固定，**不要在另一个 trace_insert 里嵌套调用**；真嵌套时
+      RELEASE 释放的是最近那层，会错层。
     """
     last = None
     for _ in range(attempts):

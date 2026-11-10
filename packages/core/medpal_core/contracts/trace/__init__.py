@@ -22,9 +22,12 @@ def load_schema() -> dict:
 def new_trace_id(conn=None) -> str:
     """TR-YYYYMMDD-XXXX，后四位大写十六进制，与 schema 的正则一致。
 
-    后四位只有 65536 种取值：同一天写满 300 条，撞号概率已过半（生日问题）。
-    CI 上实测真撞过（sqlite3.IntegrityError: UNIQUE constraint failed: trace.trace_id），
+    后四位只有 65536 种取值，按生日问题算：同一天 300 条约一半概率撞（49.6%），
+    302 条过半，360 条 62.7%。CI 上实测真撞过
+    （sqlite3.IntegrityError: UNIQUE constraint failed: trace.trace_id）。
     所以传了 conn 就先查表、撞了换一个 —— 格式不变，schema 正则不动。
+
+    占位符用 ? 依赖 GaussConn 的 _sql() 转 %s；直接传裸 psycopg 连接会炸在占位符上。
     """
     day = datetime.now(CST).strftime("%Y%m%d")
     for _ in range(16):
