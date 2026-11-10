@@ -170,6 +170,7 @@ dept_acc=1.0  exam_recall=1.0  completeness=1.0  avg_steps=6.5  avg_ms=11.3  (n=
 
 入队两件事：①（**已完成**）t2/t3 已加成 **Write** 协作者；②t2/t3 首次克隆后 `git remote add upstream https://github.com/xiangyuli494-cmyk/medpal-trace.git`，每天 `git pull --rebase upstream main`。
 
+- **方案书（10 章完稿，评审稿）**：[docs/solution/方案书.md](docs/solution/方案书.md)
 - **每人每周的任务与验收标准**：[docs/05-任务看板.md](docs/05-任务看板.md)
 - 分支 / review / approve / 合并规则：[docs/06-协作与分支规范.md](docs/06-协作与分支规范.md)
 - 节奏、Gate、裁剪顺序：[docs/04-路线图.md](docs/04-路线图.md)
