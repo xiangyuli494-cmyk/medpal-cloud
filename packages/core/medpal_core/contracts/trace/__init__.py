@@ -19,9 +19,25 @@ def load_schema() -> dict:
     return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
 
 
-def new_trace_id() -> str:
-    """TR-YYYYMMDD-XXXX，后四位大写十六进制，与 schema 的正则一致。"""
-    return "TR-" + datetime.now(CST).strftime("%Y%m%d") + "-" + uuid.uuid4().hex[:4].upper()
+def new_trace_id(conn=None) -> str:
+    """TR-YYYYMMDD-XXXX，后四位大写十六进制，与 schema 的正则一致。
+
+    后四位只有 65536 种取值，按生日问题算：同一天 300 条约一半概率撞（49.6%），
+    302 条过半，360 条 62.7%。CI 上实测真撞过
+    （sqlite3.IntegrityError: UNIQUE constraint failed: trace.trace_id）。
+    所以传了 conn 就先查表、撞了换一个 —— 格式不变，schema 正则不动。
+
+    占位符用 ? 依赖 GaussConn 的 _sql() 转 %s；直接传裸 psycopg 连接会炸在占位符上。
+    """
+    day = datetime.now(CST).strftime("%Y%m%d")
+    for _ in range(16):
+        tid = "TR-" + day + "-" + uuid.uuid4().hex[:4].upper()
+        if conn is None:
+            return tid
+        row = conn.execute("SELECT 1 FROM trace WHERE trace_id = ?", (tid,)).fetchone()
+        if row is None:
+            return tid
+    raise RuntimeError("当天 trace_id 空间耗尽：" + day)
 
 
 def validate(trace: dict) -> list[str]:
