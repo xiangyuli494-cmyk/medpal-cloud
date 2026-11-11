@@ -106,6 +106,9 @@ def make_llm(kind: str = ""):
 def run(db_path: str = "", dataset: str = "", retriever_kind: str = "",
         llm_kind: str = "") -> dict:
     conn = connect(db_path or None)
+    # 评测不需要历史 trace；不清表会让 4 位 trace_id 在多轮评测间累积碰撞。
+    conn.execute("DELETE FROM trace")
+    conn.commit()
     try:
         path = dataset_path(dataset)
         rows = load(path)

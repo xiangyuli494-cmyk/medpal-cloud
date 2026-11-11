@@ -81,8 +81,22 @@ def _repro_lines(tid, question):
     ]
 
 
+def _new_trace_id(conn) -> str:
+    """生成唯一 trace_id。
+
+    格式固定 TR-YYYYMMDD-XXXX（4 位十六进制，契约 v1 冻结），只有 65536 种。
+    评测多轮往同一张 trace 表累积时纯随机会撞 UNIQUE 约束，所以先查重再重试。
+    """
+    date = datetime.now(CST).strftime("%Y%m%d")
+    for _ in range(16):
+        tid = "TR-" + date + "-" + uuid.uuid4().hex[:4].upper()
+        if not conn.execute("SELECT 1 FROM trace WHERE trace_id = ?", (tid,)).fetchone():
+            return tid
+    raise RuntimeError("trace_id 连续 16 次冲突，trace 表可能异常膨胀")
+
+
 def write_trace(conn, question, steps, agent_version="v1.0", elapsed_ms=0, gaps=None):
-    tid = "TR-" + datetime.now(CST).strftime("%Y%m%d") + "-" + uuid.uuid4().hex[:4].upper()
+    tid = _new_trace_id(conn)
     cur = current_version(conn)
     onto = cur["version"] if cur else "v0.9"
 
