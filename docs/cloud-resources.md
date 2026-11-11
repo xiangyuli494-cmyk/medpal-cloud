@@ -178,3 +178,32 @@ MEDPAL_DB_DSN="..." python scripts/cloud_accept.py --only load --port 8044 \
 # 4) 立刻删实例 + 释放 EIP，回账单页确认归零
 ```
 
+### 4.9 报告上 OBS：应用侧那 30 行（B7）
+
+OBS 适配器早就跑通过真机，但 **应用一直没调用它**——报告只写本地 `reports/`，所以 B7 欠的是代码不是资源。2026-11-10 补上：
+
+| 位置 | 做的事 |
+| --- | --- |
+| `apps/api/app/report_store.py` | `ReportStore.upload()` 传 `reports/<trace_id>.md`；`uri()` 回读时先查本进程缓存，再 `headObject` 问一次桶 |
+| `providers/huawei/obs.py` | 新增 `uri()` / `exists()`，`put()` 复用同一个拼串处，地址不会两处漂 |
+| `POST /v1/ask` | 算完就地传，响应带 `report_uri` 与 `report_upload{key, reason}` |
+| `GET /v1/traces/{id}` | **body 不动**（schema 冻结：`additionalProperties=false` + `test_frozen_v1_digest`），地址走响应头 `X-Medpal-Report-Uri` |
+| `GET /v1/reports/{id}` | 返回报告 markdown 正文 + 云上地址，演示里「点开一条结论看它从哪来」走这里 |
+
+三条降级/失败路径都有明确返回，端点一律 200：
+
+| 情况 | `report_upload.reason` | 表现 |
+| --- | --- | --- |
+| 没配 AK/SK/BUCKET | `obs_not_configured` | `report_uri=null`，本地 `reports/` 照常写 |
+| 上传抛异常 | `upload_failed` + `error` | 推理结果不丢，只在响应里标出来 |
+| 本地报告文件不在 | `report_not_found` | 不会去猜一个打不开的链接 |
+
+自检（离线应看到 null，云上应看到 `obs://<bucket>/reports/TR-xxx.md`）：
+
+```bash
+curl -s -X POST localhost:8000/v1/ask -H 'Content-Type: application/json' \
+  -d '{"question":"上腹隐痛伴反酸，下一步做什么检查？"}' \
+  | python -c "import sys,json;d=json.load(sys.stdin);print(d['report_uri'], d['report_upload'])"
+curl -s localhost:8000/v1/traces/TR-XXXX -D- -o /dev/null | grep -i x-medpal-report-uri
+```
+

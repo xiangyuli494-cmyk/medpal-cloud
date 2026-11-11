@@ -83,7 +83,21 @@ class OBSStore:
         resp = client.putFile(self.cfg.obs_bucket, key, str(local_path))
         if getattr(resp, "status", 0) >= 300:
             raise ProviderNotConfigured("OBS 上传失败: {}".format(getattr(resp, "reason", resp)))
+        return self.uri(key)
+
+    def uri(self, key: str) -> str:
+        """对象在桶里的规范地址。只有一处拼字符串，回读与上传不会漂。"""
         return "obs://" + self.cfg.obs_bucket + "/" + key
+
+    def exists(self, key: str) -> bool:
+        """对象是否存在（headObject 200）。
+
+        报告回读必须问一次桶，而不是「配了桶就假定传上去了」：
+        /v1/ask 的上传可能失败、桶可能被人清空，凭配置猜 URI 会给出打不开的链接。
+        """
+        client = self._c()
+        resp = client.headObject(self.cfg.obs_bucket, key)
+        return getattr(resp, "status", 0) == 200
 
     def ensure_bucket(self) -> None:
         """桶不存在就建；已存在视为成功。
