@@ -13,6 +13,7 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from medpal_core import __version__ as core_version
@@ -26,8 +27,9 @@ from medpal_core.storage.db import backend_name
 from medpal_core.trace import get_trace
 
 from . import __version__ as app_version
-from .deps import get_conn, want_gaussdb
+from .deps import get_conn, get_report_store, want_gaussdb
 from .pipeline import answer
+from .report_store import local_report_path
 
 app = FastAPI(title="MedPal Cloud API", version=app_version,
               description="赛题1：基于华为云产品打造的 AI 创新应用 —— 可复用智能底座 + 可追溯决策链")
@@ -61,7 +63,7 @@ def root():
         "app_version": app_version,
         "core_version": core_version,
         "endpoints": ["/health", "/v1/cloud", "/v1/assets", "/v1/assets/{asset_id}",
-                      "/v1/ask", "/v1/traces/{trace_id}", "/v1/ontology",
+                      "/v1/ask", "/v1/traces/{trace_id}", "/v1/reports/{trace_id}", "/v1/ontology",
                       "/v1/ontology/versions", "/v1/ontology/diff"],
         "web": "/web/" if WEB_DIR.exists() else None,
     }
@@ -147,22 +149,54 @@ def ontology_versions(limit: int = 50, conn: Annotated[object, Depends(get_conn)
 
 
 @app.post("/v1/ask")
-def ask(body: AskIn, conn: Annotated[object, Depends(get_conn)]):
+def ask(body: AskIn, conn: Annotated[object, Depends(get_conn)],
+        reports: Annotated[object, Depends(get_report_store)]):
     llm = None
     if settings().llm_provider != "offline":
         try:
             llm = build_llm()
         except Exception:
             llm = None
-    return answer(conn, body.question, top_k=body.top_k, max_hops=body.max_hops, llm=llm)
+    out = answer(conn, body.question, top_k=body.top_k, max_hops=body.max_hops, llm=llm)
+    # B7：报告同步传一份到 OBS。没配桶就安静降级（uri=null，reason 说明缺什么），
+    # 已经算完的推理不会因为「云没接上」而丢掉——这条降级路径本身就是评分点。
+    up = reports.upload(out.get("trace_id"), out.get("report_path"))
+    out["report_uri"] = up.get("uri")
+    out["report_upload"] = up
+    return out
 
 
 @app.get("/v1/traces/{trace_id}")
-def trace(trace_id: str, conn: Annotated[object, Depends(get_conn)]):
+def trace(trace_id: str, conn: Annotated[object, Depends(get_conn)],
+          reports: Annotated[object, Depends(get_report_store)]):
     out = get_trace(conn, trace_id)
     if not out:
         raise HTTPException(status_code=404, detail={"reason": "trace_not_found", "trace_id": trace_id})
-    return out
+    # 契约冻结（schema additionalProperties=false + test_frozen_v1_digest）：
+    # 报告地址不能塞进 body，用响应头捎带；要正文走 GET /v1/reports/{trace_id}。
+    # 回读时问一次桶：缓存命中就直接给，没有就 headObject 一次，拿不到就不带头。
+    uri = reports.uri(trace_id)
+    resp = JSONResponse(out)
+    if uri:
+        resp.headers["X-Medpal-Report-Uri"] = uri
+    return resp
+
+
+@app.get("/v1/reports/{trace_id}")
+def report(trace_id: str, conn: Annotated[object, Depends(get_conn)],
+           reports: Annotated[object, Depends(get_report_store)]):
+    """报告本身：本地副本 + 云上地址。演示里「点开一条结论看它从哪来」走这里。"""
+    if not get_trace(conn, trace_id):
+        raise HTTPException(status_code=404, detail={"reason": "trace_not_found", "trace_id": trace_id})
+    path = local_report_path(trace_id)
+    body = path.read_text(encoding="utf-8") if path.exists() else ""
+    return {
+        "ok": bool(body),
+        "trace_id": trace_id,
+        "report_uri": reports.uri(trace_id),
+        "local_path": str(path),
+        "markdown": body,
+    }
 
 
 @app.get("/v1/ontology")
