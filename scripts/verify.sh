@@ -7,6 +7,7 @@
 #   bash scripts/verify.sh --fast             跳过评测（本地改代码时秒级反馈）
 #   MIN_N=30 MIN_DEPT_ACC=0.85 bash scripts/verify.sh     G1/G2 门槛用
 #   bash scripts/verify.sh --self-test        负向自测：临时副本里塞一条 BND1 违规，必须 FAIL
+#   bash scripts/verify.sh --image            额外跑 B5 镜像验收（build + /health + seed + /v1/ask）
 #
 # 换 Python：PY=/usr/bin/python3.12 bash scripts/verify.sh
 set -uo pipefail
@@ -34,15 +35,19 @@ case "$(uname -s)" in
 esac
 
 MODE="full"
-case "${1:-}" in
-  --fast) MODE="fast" ;;
-  --self-test) MODE="selftest" ;;
-  --help|-h)
-    sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
-    exit 0 ;;
-  "") ;;
-  *) echo "未知参数：$1（可用 --fast / --self-test / --help）"; exit 2 ;;
-esac
+IMAGE_CHECK=0
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --fast) MODE="fast" ;;
+    --self-test) MODE="selftest" ;;
+    --image) IMAGE_CHECK=1 ;;
+    --help|-h)
+      sed -n '2,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      exit 0 ;;
+    *) echo "未知参数：$1（可用 --fast / --self-test / --image / --help）"; exit 2 ;;
+  esac
+  shift
+done
 
 TMP="$(mktemp -d 2>/dev/null || mktemp -d -t verify)"
 trap 'rm -rf "$TMP"' EXIT
@@ -76,6 +81,19 @@ run "禁用语"               "$PY" tools/check_guard_words.py
 run "单元测试 (pytest)"    "$PY" -m pytest -q
 run "灌演示数据 (seed)"    "$PY" -m app.seed
 run "端到端冒烟 (smoke)"   "$PY" scripts/smoke_verify.py
+
+# B5 镜像验收是可选步骤：默认不跑（一次 build 要十几秒到几分钟，还依赖 Docker）。
+# 必须显式 --image，或者 VERIFY_IMAGE=1 bash scripts/verify.sh。
+# 机器上没有 docker / daemon 没起来时打印 SKIP 而不是 FAIL —— 那是「没法验」，不是「验不过」。
+if [ "$IMAGE_CHECK" = "1" ] || [ "${VERIFY_IMAGE:-0}" = "1" ]; then
+  if ! command -v docker >/dev/null 2>&1; then
+    printf '     SKIP 镜像验收 (B5)  docker 不在 PATH\n'
+  elif ! docker info >/dev/null 2>&1; then
+    printf '     SKIP 镜像验收 (B5)  Docker daemon 没起来（先启动 Docker Desktop）\n'
+  else
+    run "镜像验收 (B5)" bash scripts/check_image.sh
+  fi
+fi
 
 # 模型连通性：没配 key 时打印 SKIP 不算失败（本地/CI 常态），配了就必须真通。
 # 想让没买模型也算失败，跑 VERIFY_STRICT_LLM=1 bash scripts/verify.sh。
