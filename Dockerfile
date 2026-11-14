@@ -16,6 +16,9 @@ ENV PYTHONPATH=/app/apps/api:/app/packages/core
 COPY pyproject.toml README.md ./
 COPY packages/core ./packages/core
 COPY apps ./apps
+# B10 接云时这里要换成 -e ".[huawei]"（psycopg + esdk-obs-python）；
+# 但 esdk-obs-python 依赖的 crcmod 只有 sdist、无 Linux wheel，slim 镜像
+# 没有 gcc 会编译失败，届时需要加一个 builder 阶段或预编译 wheel。
 RUN pip install --no-cache-dir -e .
 
 COPY data ./data
