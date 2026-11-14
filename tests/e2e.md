@@ -255,7 +255,7 @@ curl -s $B/web/ | grep -c 'ev-row'
 curl -s $B/web/ | grep -o '?demo=[a-z]*' | sort -u
 ```
 
-期望输出（实测，`main` @ `15b0ab8`）：
+期望输出（实测，最新 `main`）：
 
 ```text
 200
@@ -303,6 +303,7 @@ bash scripts/verify.sh --fast
      ok   单元测试 (pytest)
      ok   灌演示数据 (seed)
      ok   端到端冒烟 (smoke)
+     ok   模型连通性 (smoke_llm)
 
 PASS
 ```
@@ -324,6 +325,7 @@ MIN_N=60 MIN_DEPT_ACC=0.85 bash scripts/verify.sh
      ok   单元测试 (pytest)
      ok   灌演示数据 (seed)
      ok   端到端冒烟 (smoke)
+     ok   模型连通性 (smoke_llm)
      ok   指标门槛  n=60 dept_acc=0.967 completeness=1.0 zero_evidence=0
 
 PASS
@@ -368,8 +370,8 @@ python eval/run_eval.py --dataset v2 --retriever koosearch --llm modelarts --jso
 
 | 现象 | 原因 | 处理 |
 | --- | --- | --- |
-| `sqlite3.IntegrityError: UNIQUE constraint failed: trace.trace_id` | `trace_id` 后四位只有 65536 种，同一天累积几百条后必撞 | **已修（#74 / `dbab261`）**：查表预检 + INSERT 层 SAVEPOINT 重试。在旧代码上遇到时清库重跑：`rm -f data/medpal.db && rm -rf data/reports && python -m app.seed` |
-| 同时打两个以上请求时随机 500，日志 `SQLite objects created in a thread can only be used in that same thread` | FastAPI 把同步依赖与端点调度到不同线程，`storage/db.py` 的 `sqlite3.connect` 没开 `check_same_thread=False` | **已修（#81 / `4bc1198`）**：`connect()` 已开 `check_same_thread=False`。实测并发打 `/health`+`/v1/ask`+`/v1/traces`+`/v1/assets` 共 48 请求，**48/48 全 200** |
+| `sqlite3.IntegrityError: UNIQUE constraint failed: trace.trace_id` | `trace_id` 后四位只有 65536 种，同一天累积几百条后必撞 | **已修（#74）**：查表预检 + INSERT 层 SAVEPOINT 重试。在旧代码上遇到时清库重跑：`rm -f data/medpal.db && rm -rf data/reports && python -m app.seed` |
+| 同时打两个以上请求时随机 500，日志 `SQLite objects created in a thread can only be used in that same thread` | FastAPI 把同步依赖与端点调度到不同线程，`storage/db.py` 的 `sqlite3.connect` 没开 `check_same_thread=False` | **已修（#81）**：`connect()` 已开 `check_same_thread=False`。复跑方法见 §4，判据是 48 请求**全部 200** |
 | `curl -d` 带中文返回 `There was an error parsing the body` | Windows Git Bash 的 argv 码页问题（见 §0） | 改用 `--data-binary @file` |
 | `/v1/assets` 全是 0 条 | 没跑 seed，或 `MEDPAL_DB` 指向了别的库 | 确认 `python -m app.seed` 与 `MEDPAL_DB` 一致性 |
 
@@ -389,8 +391,8 @@ E10 trace 404         GET /v1/traces/TR-19700101-0000                      → 4
 E11 契约校验          GET /v1/traces/{id} + validate()                     → steps=6, contract_errors=[]
 E12 演示页            GET /web/ (+ ?demo= 三入口)                        → 200 + ev-row=6 + 三个 demo 参数（实测）
 E13 评测 n=60         python eval/run_eval.py                              → n=60 dept_acc>=0.85 zero_evidence=0
-E14 门禁（快）        bash scripts/verify.sh --fast                        → 6 项 ok + PASS
-E15 门禁（G2）        MIN_N=60 MIN_DEPT_ACC=0.85 bash scripts/verify.sh    → 7 项 ok + PASS
+E14 门禁（快）        bash scripts/verify.sh --fast                        → 7 项 ok + PASS
+E15 门禁（G2）        MIN_N=60 MIN_DEPT_ACC=0.85 bash scripts/verify.sh    → 8 项 ok + PASS
 E16 边界/禁用语       check_boundaries.py + check_guard_words.py           → 均「通过」
 E17 消融四组          run_eval.py --retriever × --llm 四条                 → 均打印实际后端
 ```
@@ -399,13 +401,62 @@ E17 消融四组          run_eval.py --retriever × --llm 四条               
 
 ## 4. 最近一次全量复验记录
 
+复验基线是**最新 `main`**（本行随 PR 更新；合并前 rebase 到当时最新的 `main` 再跑一遍，
+不要在旧 `main` 上跑完就写「全绿」——#84 改了 `apps/api/app/main.py`、#92 又改了
+`scripts/verify.sh`（多一个可选的镜像验收步骤），旧基线跑出来的结果对不上现在的 `main`）。
+
 | 项 | 结果 | 环境 |
 | --- | --- | --- |
-| 本清单 E01–E17 | 全绿 | `main` @ `15b0ab8`，干净 worktree、**无任何本地补丁** |
-| 演示页 A6 验收（证据展开 / 假锚点 0% + 整块标红） | **16/16 断言通过** | headless Chrome + CDP 真点击 |
-| 演示页 A8 验收（三态一键入口 / 窄屏 375） | 同上，含在内 | 同上 |
+| 本清单 E01–E17 | 全绿 | 最新 `main`，干净 worktree、**无任何本地补丁** |
+| 演示页 A6 验收（证据展开 / 假锚点 0% + 整块标红 / 行内 ❌ / 展开「锚点不存在」） | **21/21 断言通过** | headless Chrome + CDP 真点击 |
+| 演示页 A8 验收（三条一键入口 / 加载态固定画面 / 拒答态 / 窄屏 375 单栏且展开不遮挡输入框） | 同上，含在这 21 条里 | 同上 |
 | 并发（`/health`+`/v1/ask`+`/v1/traces`+`/v1/assets` 各 12 条，20 线程） | **48/48 全 200** | 验证 #81 生效 |
 
-> 复验方法：`git worktree add` 一份干净 `main`、`python -m app.seed`、起 uvicorn，然后按本清单逐条跑；
-> 演示页部分用 CDP 驱动 headless Chrome 真实点击（假锚点 trace 用 `write_trace()` 把 evidence 写成不存在的锚点造出来）。
+### 4.1 怎么复核这两条「只有数字」的项
 
+前提与 §0 一致（干净库 + 服务起在 8127 + `PYTHONPATH` 指到 core/api）。
+
+**并发（判据：`total 48 200: 48`，任何一条 500 即 #81 回归）**
+
+```bash
+python - <<'EOF'
+import json, urllib.request as u, urllib.error, concurrent.futures as cf
+B = "http://127.0.0.1:8127"; Q = {"question": "上腹隐痛伴反酸，下一步做什么检查？", "top_k": 8, "max_hops": 2}
+def call(path, body=None):
+    req = u.Request(B + path, data=json.dumps(body, ensure_ascii=False).encode() if body else None,
+                    headers={"Content-Type": "application/json"}, method="POST" if body else "GET")
+    try:
+        with u.urlopen(req, timeout=60) as r: return r.status
+    except urllib.error.HTTPError as e: return e.code
+tid = json.loads(u.urlopen(u.Request(B + "/v1/ask", data=json.dumps(Q).encode(),
+      headers={"Content-Type": "application/json"})).read())["trace_id"]
+jobs = []
+for _ in range(12):
+    jobs += [("/health", None), ("/v1/ask", Q), ("/v1/traces/" + tid, None), ("/v1/assets", None)]
+with cf.ThreadPoolExecutor(max_workers=20) as ex:
+    codes = list(ex.map(lambda j: call(*j), jobs))
+print("total", len(codes), "200:", sum(1 for c in codes if c == 200))
+EOF
+```
+
+实测输出：`total 48 200: 48`。
+
+**演示页 21 条断言（判据：输出 `演示页验收: 21/21 断言通过`，退出码 0）**
+
+`tools/web_accept.py` 用 headless Chromium + CDP 真点击，覆盖 A6（证据展开原文 / 假锚点 0% +
+整块标红 / 行内 ❌ / 展开「锚点不存在」/ 决策链步高亮）与 A8（三条一键入口 / 加载态固定画面 /
+拒答态 / 窄屏 375 单栏且展开不遮挡输入框）。不截图、不比像素，纯 DOM 断言。
+
+```bash
+python tools/web_accept.py --make-fake     # 自建假锚点 trace 后直接跑（推荐）
+python tools/web_accept.py TR-XXXX         # 或跑一条已存在的 trace
+python tools/web_accept.py --make-fake --base http://127.0.0.1:8000   # 端口不是 8127
+```
+
+以 `--make-fake` 为例，开头打印它造出的 `trace_id`，最后一行是 `演示页验收: 21/21 断言通过`
+（中间 21 行 `ok`，逐条见脚本）。假锚点 trace 由 `write_trace()` 写库造出，**资产真实存在、
+锚点不存在** —— 前端才会走「锚点不存在（unresolved）」分支；资产也不存在时走的是另一条
+「资产不存在」，验不到本项。
+
+> `--make-fake` 要和服务用同一个 `MEDPAL_DB`（否则读不到刚写的 trace），浏览器用 `CHROME=` 指定；
+> 跑完库里会多一条 `TR-` 记录和报告，要复位就按 §0 清库重 seed。
